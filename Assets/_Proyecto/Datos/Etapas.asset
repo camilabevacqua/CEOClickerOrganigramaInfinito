@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37e6a7e6607cd5f4a9c6b2a44f529e0c, type: 3}
+  m_Name: Etapas
+  m_EditorClassIdentifier: 
+  etapas:
+  - nombreEtapa: Freelancer en un garaje
+    nombreEmpresa: Garaje Unipersonal
+    minimoFacturado: 0
+  - nombreEtapa: Emprendedor
+    nombreEmpresa: Garaje & Asociados
+    minimoFacturado: 1000
+  - nombreEtapa: Startup
+    nombreEmpresa: Garaje Labs
+    minimoFacturado: 25000
+  - nombreEtapa: PyME
+    nombreEmpresa: Garaje S.R.L.
+    minimoFacturado: 500000
+  - nombreEtapa: Empresa nacional
+    nombreEmpresa: Garaje S.A.
+    minimoFacturado: 10000000
+  - nombreEtapa: "Corporaci\xF3n"
+    nombreEmpresa: Garaje Corp.
+    minimoFacturado: 250000000
+  - nombreEtapa: Multinacional
+    nombreEmpresa: Garaje Global Holdings
+    minimoFacturado: 10000000000
+  - nombreEtapa: Imperio global
+    nombreEmpresa: Grupo Garaje Internacional
+    minimoFacturado: 1000000000000

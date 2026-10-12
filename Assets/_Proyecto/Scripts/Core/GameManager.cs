@@ -20,6 +20,9 @@ public class GameManager : MonoBehaviour
     [Header("Departamentos (RRHH, Marketing, Finanzas)")]
     [SerializeField] private DepartamentoData[] departamentos = new DepartamentoData[0];
 
+    [Header("Etapas de la empresa")]
+    [SerializeField] private EtapasConfig configEtapas;
+
     public EstadoJuego Estado { get; private set; } = new EstadoJuego();
     public IReadOnlyList<PuestoData> Puestos => puestos;
     public IReadOnlyList<DepartamentoData> Departamentos => departamentos;
@@ -36,6 +39,12 @@ public class GameManager : MonoBehaviour
     /// <summary>Se dispara al subir de nivel un departamento.</summary>
     public event Action<DepartamentoData> OnDepartamentoMejorado;
 
+    /// <summary>Se dispara al pasar a una etapa nueva (índice de la etapa).</summary>
+    public event Action<int> OnCambioEtapa;
+
+    /// <summary>Índice de la etapa actual (0 = Freelancer en un garaje).</summary>
+    public int IndiceEtapa { get; private set; }
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -48,6 +57,7 @@ public class GameManager : MonoBehaviour
         if (puestos == null) puestos = new PuestoData[0];
         if (departamentos == null) departamentos = new DepartamentoData[0];
         AjustarEstado();
+        ActualizarEtapa(false);
     }
 
     private void OnDestroy()
@@ -302,6 +312,61 @@ public class GameManager : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    // Etapas
+    // ------------------------------------------------------------------
+
+    public int CantidadEtapas => configEtapas != null ? configEtapas.etapas.Count : 0;
+
+    /// <summary>Etapa por índice, o null si no existe.</summary>
+    public EtapasConfig.Etapa Etapa(int indice)
+    {
+        if (indice < 0 || indice >= CantidadEtapas) return null;
+        return configEtapas.etapas[indice];
+    }
+
+    public EtapasConfig.Etapa EtapaActual => Etapa(IndiceEtapa);
+
+    /// <summary>La próxima etapa, o null si ya estás en la última.</summary>
+    public EtapasConfig.Etapa EtapaSiguiente => Etapa(IndiceEtapa + 1);
+
+    /// <summary>Progreso de 0 a 1 entre la etapa actual y la siguiente (1 en la última).</summary>
+    public double ProgresoEtapa
+    {
+        get
+        {
+            EtapasConfig.Etapa actual = EtapaActual;
+            EtapasConfig.Etapa siguiente = EtapaSiguiente;
+            if (actual == null || siguiente == null) return 1.0;
+
+            double tramo = siguiente.minimoFacturado - actual.minimoFacturado;
+            if (tramo <= 0) return 1.0;
+
+            double progreso = (Estado.facturadoPartida - actual.minimoFacturado) / tramo;
+            return Math.Max(0.0, Math.Min(1.0, progreso));
+        }
+    }
+
+    private int CalcularIndiceEtapa()
+    {
+        int indice = 0;
+        for (int i = 0; i < CantidadEtapas; i++)
+        {
+            if (Estado.facturadoPartida >= configEtapas.etapas[i].minimoFacturado) indice = i;
+        }
+        return indice;
+    }
+
+    private void ActualizarEtapa(bool avisar)
+    {
+        int nuevo = CalcularIndiceEtapa();
+        if (nuevo == IndiceEtapa) return;
+
+        bool subio = nuevo > IndiceEtapa;
+        IndiceEtapa = nuevo;
+        if (avisar && subio) OnCambioEtapa?.Invoke(nuevo);
+    }
+
+    // ------------------------------------------------------------------
     // Acciones del jugador
     // ------------------------------------------------------------------
 
@@ -359,6 +424,7 @@ public class GameManager : MonoBehaviour
         Estado.plata += monto;
         Estado.facturadoPartida += monto;
         Estado.facturadoHistorico += monto;
+        ActualizarEtapa(true);
         AvisarCambio();
     }
 
@@ -397,6 +463,7 @@ public class GameManager : MonoBehaviour
     {
         Estado = new EstadoJuego();
         AjustarEstado();
+        ActualizarEtapa(false);
         AvisarCambio();
     }
 }

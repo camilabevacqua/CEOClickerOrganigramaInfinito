@@ -21,6 +21,8 @@ public static class ConfiguradorProyecto
     private const string RutaPrefabPuesto = RaizProyecto + "/Prefabs/ItemPuesto.prefab";
     private const string CarpetaDepartamentos = RaizProyecto + "/Datos/Departamentos";
     private const string RutaPrefabDepartamento = RaizProyecto + "/Prefabs/ItemDepartamento.prefab";
+    private const string RutaEtapas = RaizProyecto + "/Datos/Etapas.asset";
+    private const string RutaPrefabEtapa = RaizProyecto + "/Prefabs/ItemEtapa.prefab";
 
     private static readonly string[] Carpetas =
     {
@@ -321,6 +323,78 @@ public static class ConfiguradorProyecto
         AssetDatabase.SaveAssets();
 
         Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 5 listo. Departamentos en " + CarpetaDepartamentos + ".");
+    }
+
+    // =================================================================
+    // PASO 6: etapas, barra de progreso y lista en la pestaña Empresa
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 6 - Etapas y progreso", priority = 6)]
+    public static void ConfigurarPaso6()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        UIBarraSuperior barra = Object.FindFirstObjectByType<UIBarraSuperior>();
+        Transform panelEmpresa = BuscarDescendiente(area.transform, "PanelEmpresa");
+        if (gm == null || barra == null || panelEmpresa == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré los Pasos 4 y 5 (falta la barra superior o el panel Empresa).", "OK");
+            return;
+        }
+
+        CrearCarpetas();
+
+        // 1) Datos de las etapas
+        EtapasConfig etapas = CrearOObtenerEtapas();
+        SerializedObject soGm = new SerializedObject(gm);
+        soGm.FindProperty("configEtapas").objectReferenceValue = etapas;
+        soGm.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2) Barra superior: conectar etapa, empresa y relleno de progreso
+        SerializedObject soBarra = new SerializedObject(barra);
+        soBarra.FindProperty("textoEtapa").objectReferenceValue = BuscarComponente<TMP_Text>(barra.transform, "TextoEtapa");
+        soBarra.FindProperty("textoEmpresa").objectReferenceValue = BuscarComponente<TMP_Text>(barra.transform, "TextoEmpresa");
+        soBarra.FindProperty("rellenoProgreso").objectReferenceValue = BuscarDescendiente(barra.transform, "Relleno");
+        soBarra.ApplyModifiedPropertiesWithoutUndo();
+
+        // 3) Pestaña Empresa: se vacía y se arma de nuevo (el objeto PanelEmpresa se conserva para las pestañas)
+        for (int i = panelEmpresa.childCount - 1; i >= 0; i--)
+        {
+            Object.DestroyImmediate(panelEmpresa.GetChild(i).gameObject);
+        }
+        UIListaEtapas viejo = panelEmpresa.GetComponent<UIListaEtapas>();
+        if (viejo != null) Object.DestroyImmediate(viejo);
+
+        CrearEncabezado(panelEmpresa, "Empresa");
+        RectTransform contenido = CrearListaConScroll(panelEmpresa, 110f);
+
+        TextMeshProUGUI tituloEtapas = CrearTexto("TituloEtapas", contenido, "Etapas", 36, Hex(ColorTexto));
+        tituloEtapas.alignment = TextAlignmentOptions.MidlineLeft;
+        tituloEtapas.margin = new Vector4(8f, 0f, 0f, 0f);
+        tituloEtapas.gameObject.AddComponent<LayoutElement>().preferredHeight = 60f;
+
+        RectTransform seccion = CrearRect("SeccionEtapas", contenido);
+        VerticalLayoutGroup vl = seccion.gameObject.AddComponent<VerticalLayoutGroup>();
+        vl.spacing = 10f;
+        vl.childControlWidth = true;
+        vl.childControlHeight = true;
+        vl.childForceExpandWidth = true;
+        vl.childForceExpandHeight = false;
+
+        UIEtapaItem prefab = CrearPrefabItemEtapa();
+        UIListaEtapas lista = panelEmpresa.gameObject.AddComponent<UIListaEtapas>();
+        SerializedObject soLista = new SerializedObject(lista);
+        soLista.FindProperty("prefabItem").objectReferenceValue = prefab;
+        soLista.FindProperty("contenedor").objectReferenceValue = seccion;
+        soLista.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+
+        Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 6 listo. Etapas en " + RutaEtapas + ".");
     }
 
     // =================================================================
@@ -996,6 +1070,111 @@ public static class ConfiguradorProyecto
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabDepartamento);
         Object.DestroyImmediate(raiz);
         return prefab.GetComponent<UIDepartamentoItem>();
+    }
+
+    // =================================================================
+    // Partes del Paso 6
+    // =================================================================
+    private static EtapasConfig CrearOObtenerEtapas()
+    {
+        EtapasConfig existente = AssetDatabase.LoadAssetAtPath<EtapasConfig>(RutaEtapas);
+        if (existente != null) return existente; // no pisa lo que editaste a mano
+
+        EtapasConfig config = ScriptableObject.CreateInstance<EtapasConfig>();
+        AgregarEtapa(config, "Freelancer en un garaje", "Garaje Unipersonal", 0);
+        AgregarEtapa(config, "Emprendedor", "Garaje & Asociados", 1e3);
+        AgregarEtapa(config, "Startup", "Garaje Labs", 25e3);
+        AgregarEtapa(config, "PyME", "Garaje S.R.L.", 5e5);
+        AgregarEtapa(config, "Empresa nacional", "Garaje S.A.", 1e7);
+        AgregarEtapa(config, "Corporación", "Garaje Corp.", 2.5e8);
+        AgregarEtapa(config, "Multinacional", "Garaje Global Holdings", 1e10);
+        AgregarEtapa(config, "Imperio global", "Grupo Garaje Internacional", 1e12);
+
+        AssetDatabase.CreateAsset(config, RutaEtapas);
+        AssetDatabase.SaveAssets();
+        return config;
+    }
+
+    private static void AgregarEtapa(EtapasConfig config, string etapa, string empresa, double minimo)
+    {
+        config.etapas.Add(new EtapasConfig.Etapa
+        {
+            nombreEtapa = etapa,
+            nombreEmpresa = empresa,
+            minimoFacturado = minimo
+        });
+    }
+
+    /// <summary>Crea (o recrea) el prefab de la fila de una etapa.</summary>
+    private static UIEtapaItem CrearPrefabItemEtapa()
+    {
+        const float alto = 120f;
+
+        GameObject raiz = new GameObject("ItemEtapa", typeof(RectTransform));
+        raiz.layer = LayerMask.NameToLayer("UI");
+        RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
+        rtRaiz.sizeDelta = new Vector2(1000f, alto);
+
+        Image fondo = AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f);
+        fondo.raycastTarget = false;
+        LayoutElement le = raiz.AddComponent<LayoutElement>();
+        le.minHeight = alto;
+        le.preferredHeight = alto;
+
+        // Círculo con el número de etapa
+        RectTransform rtMarcador = CrearRect("Marcador", rtRaiz);
+        rtMarcador.anchorMin = rtMarcador.anchorMax = new Vector2(0f, 0.5f);
+        rtMarcador.pivot = new Vector2(0f, 0.5f);
+        rtMarcador.sizeDelta = new Vector2(72f, 72f);
+        rtMarcador.anchoredPosition = new Vector2(24f, 0f);
+        Image marcador = rtMarcador.gameObject.AddComponent<Image>();
+        marcador.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
+        marcador.color = Hex(ColorAcento);
+        marcador.raycastTarget = false;
+
+        TextMeshProUGUI numero = CrearTexto("Numero", rtMarcador, "1", 34, Color.white);
+        Estirar(numero.rectTransform);
+
+        // Textos
+        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", rtRaiz, "Etapa", 34, Hex(ColorTexto));
+        etapa.alignment = TextAlignmentOptions.MidlineLeft;
+        etapa.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(etapa.rectTransform, 120f, 260f, 14f, 48f);
+
+        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", rtRaiz, "Empresa", 26, Hex(ColorTextoSuave));
+        empresa.fontStyle = FontStyles.Normal;
+        empresa.alignment = TextAlignmentOptions.MidlineLeft;
+        empresa.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(empresa.rectTransform, 120f, 260f, 62f, 40f);
+
+        TextMeshProUGUI meta = CrearTexto("TextoMeta", rtRaiz, "$0", 30, Hex(ColorAcento));
+        meta.alignment = TextAlignmentOptions.MidlineRight;
+        RectTransform rtMeta = meta.rectTransform;
+        rtMeta.anchorMin = new Vector2(1f, 0f);
+        rtMeta.anchorMax = new Vector2(1f, 1f);
+        rtMeta.pivot = new Vector2(1f, 0.5f);
+        rtMeta.sizeDelta = new Vector2(230f, 0f);
+        rtMeta.anchoredPosition = new Vector2(-24f, 0f);
+
+        UIEtapaItem item = raiz.AddComponent<UIEtapaItem>();
+        SerializedObject so = new SerializedObject(item);
+        so.FindProperty("fondo").objectReferenceValue = fondo;
+        so.FindProperty("marcador").objectReferenceValue = marcador;
+        so.FindProperty("textoNumero").objectReferenceValue = numero;
+        so.FindProperty("textoEtapa").objectReferenceValue = etapa;
+        so.FindProperty("textoEmpresa").objectReferenceValue = empresa;
+        so.FindProperty("textoMeta").objectReferenceValue = meta;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabEtapa);
+        Object.DestroyImmediate(raiz);
+        return prefab.GetComponent<UIEtapaItem>();
+    }
+
+    private static T BuscarComponente<T>(Transform padre, string nombre) where T : Component
+    {
+        Transform t = BuscarDescendiente(padre, nombre);
+        return t != null ? t.GetComponent<T>() : null;
     }
 
     private static Button CrearBotonChico(string nombre, Transform padre, string texto)
