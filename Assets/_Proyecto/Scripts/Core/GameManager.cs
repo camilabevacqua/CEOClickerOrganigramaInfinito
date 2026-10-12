@@ -11,6 +11,9 @@ public class GameManager : MonoBehaviour
 {
     private const double CrecimientoCosto = 1.15;
     private const int MaxCompraPorVez = 100000;
+    private const float IntervaloAutoguardado = 5f;
+    private const double MaxSegundosOffline = 8 * 3600;   // 8 horas
+    private const double MinSegundosParaAviso = 10;       // ausencias cortas no muestran cartel
 
     public static GameManager Instance { get; private set; }
 
@@ -22,6 +25,10 @@ public class GameManager : MonoBehaviour
 
     [Header("Etapas de la empresa")]
     [SerializeField] private EtapasConfig configEtapas;
+
+    [Header("Guardado")]
+    [Tooltip("Destildalo para probar siempre desde cero en el editor.")]
+    [SerializeField] private bool cargarAlIniciar = true;
 
     public EstadoJuego Estado { get; private set; } = new EstadoJuego();
     public IReadOnlyList<PuestoData> Puestos => puestos;
@@ -45,6 +52,17 @@ public class GameManager : MonoBehaviour
     /// <summary>Índice de la etapa actual (0 = Freelancer en un garaje).</summary>
     public int IndiceEtapa { get; private set; }
 
+    /// <summary>Ganancia offline al volver (monto, segundos ausente).</summary>
+    public event Action<double, double> OnGananciaOffline;
+
+    // Aviso offline que quedó pendiente porque la UI todavía no existía (carga en Awake)
+    public bool HayAvisoOfflinePendiente { get; private set; }
+    public double OfflinePendienteMonto { get; private set; }
+    public double OfflinePendienteSegundos { get; private set; }
+
+    private float proximoGuardado;
+    private DateTime? momentoPausa;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -57,7 +75,9 @@ public class GameManager : MonoBehaviour
         if (puestos == null) puestos = new PuestoData[0];
         if (departamentos == null) departamentos = new DepartamentoData[0];
         AjustarEstado();
+        if (cargarAlIniciar) Cargar();
         ActualizarEtapa(false);
+        proximoGuardado = Time.unscaledTime + IntervaloAutoguardado;
     }
 
     private void OnDestroy()
@@ -73,6 +93,142 @@ public class GameManager : MonoBehaviour
         {
             SumarPlata(porSegundo * Time.deltaTime);
         }
+
+        // Guardado automático
+        if (Time.unscaledTime >= proximoGuardado)
+        {
+            proximoGuardado = Time.unscaledTime + IntervaloAutoguardado;
+            Guardar();
+        }
+    }
+
+    // Al minimizar la app (Android) se guarda; al volver se suma lo producido mientras tanto
+    private void OnApplicationPause(bool pausada)
+    {
+        if (Instance != this) return;
+
+        if (pausada)
+        {
+            Guardar();
+            momentoPausa = DateTime.UtcNow;
+        }
+        else if (momentoPausa.HasValue)
+        {
+            double segundos = (DateTime.UtcNow - momentoPausa.Value).TotalSeconds;
+            momentoPausa = null;
+            AplicarGananciaOffline(segundos);
+        }
+    }
+
+    private void OnApplicationQuit()
+    {
+        if (Instance == this) Guardar();
+    }
+
+    // ------------------------------------------------------------------
+    // Guardado y carga
+    // ------------------------------------------------------------------
+
+    public void Guardar()
+    {
+        SistemaGuardado.Guardar(CrearDatosGuardado());
+    }
+
+    private void Cargar()
+    {
+        DatosGuardado datos = SistemaGuardado.Cargar();
+        if (datos == null) return;
+
+        AplicarDatosGuardado(datos);
+
+        DateTime fechaGuardado = new DateTime(datos.fechaGuardadoTicks, DateTimeKind.Utc);
+        double segundosAusente = (DateTime.UtcNow - fechaGuardado).TotalSeconds;
+        AplicarGananciaOffline(segundosAusente);
+    }
+
+    private DatosGuardado CrearDatosGuardado()
+    {
+        DatosGuardado datos = new DatosGuardado
+        {
+            plata = Estado.plata,
+            facturadoPartida = Estado.facturadoPartida,
+            facturadoHistorico = Estado.facturadoHistorico,
+            clicsTotales = Estado.clicsTotales,
+            acciones = Estado.acciones
+        };
+
+        for (int i = 0; i < puestos.Length; i++)
+        {
+            if (puestos[i] == null) continue;
+            datos.puestos.Add(new RegistroId { id = puestos[i].id, valor = Estado.cantidadesPuestos[i] });
+        }
+
+        for (int i = 0; i < departamentos.Length; i++)
+        {
+            if (departamentos[i] == null) continue;
+            datos.departamentos.Add(new RegistroId { id = departamentos[i].id, valor = Estado.nivelesDepartamentos[i] });
+        }
+
+        return datos;
+    }
+
+    private void AplicarDatosGuardado(DatosGuardado datos)
+    {
+        Estado = new EstadoJuego
+        {
+            plata = Math.Max(0, datos.plata),
+            facturadoPartida = Math.Max(0, datos.facturadoPartida),
+            facturadoHistorico = Math.Max(0, datos.facturadoHistorico),
+            clicsTotales = Math.Max(0, datos.clicsTotales),
+            acciones = Math.Max(0, datos.acciones)
+        };
+        AjustarEstado();
+
+        if (datos.puestos != null)
+        {
+            foreach (RegistroId r in datos.puestos)
+            {
+                int i = Array.FindIndex(puestos, p => p != null && p.id == r.id);
+                if (i >= 0) Estado.cantidadesPuestos[i] = Math.Max(0, r.valor);
+            }
+        }
+
+        if (datos.departamentos != null)
+        {
+            foreach (RegistroId r in datos.departamentos)
+            {
+                int i = Array.FindIndex(departamentos, d => d != null && d.id == r.id);
+                if (i < 0) continue;
+                int nivel = Math.Max(0, r.valor);
+                if (departamentos[i].nivelMaximo > 0) nivel = Math.Min(nivel, departamentos[i].nivelMaximo);
+                Estado.nivelesDepartamentos[i] = nivel;
+            }
+        }
+    }
+
+    /// <summary>Suma ingresoPorSegundo × segundos ausente (máximo 8 h) y avisa a la UI.</summary>
+    private void AplicarGananciaOffline(double segundos)
+    {
+        if (double.IsNaN(segundos) || segundos < 1) return; // reloj atrasado o ausencia nula
+
+        segundos = Math.Min(segundos, MaxSegundosOffline);
+        double ganancia = IngresoPorSegundo * segundos;
+        if (ganancia <= 0) return;
+
+        SumarPlata(ganancia);
+
+        if (segundos < MinSegundosParaAviso) return;
+
+        OfflinePendienteMonto = ganancia;
+        OfflinePendienteSegundos = segundos;
+        HayAvisoOfflinePendiente = true;
+        OnGananciaOffline?.Invoke(ganancia, segundos);
+    }
+
+    /// <summary>La UI lo llama al cerrar el cartel de ganancias offline.</summary>
+    public void MarcarAvisoOfflineVisto()
+    {
+        HayAvisoOfflinePendiente = false;
     }
 
     /// <summary>Se asegura de que el estado tenga un lugar por cada puesto y cada departamento.</summary>
@@ -457,6 +613,16 @@ public class GameManager : MonoBehaviour
 
     [ContextMenu("Prueba: sumar 1e30")]
     private void PruebaEnorme() => SumarPlata(1e30);
+
+    [ContextMenu("Prueba: simular 1 hora offline")]
+    private void PruebaOffline() => AplicarGananciaOffline(3600);
+
+    [ContextMenu("Prueba: guardar ahora")]
+    private void PruebaGuardar()
+    {
+        Guardar();
+        Debug.Log("Partida guardada en " + SistemaGuardado.Ruta);
+    }
 
     [ContextMenu("Prueba: reiniciar partida")]
     private void PruebaReiniciar()

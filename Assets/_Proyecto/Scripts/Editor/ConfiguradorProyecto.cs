@@ -490,6 +490,101 @@ public static class ConfiguradorProyecto
     }
 
     // =================================================================
+    // PASO 9: cartel de ganancias offline (el guardado está en el GameManager)
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 9 - Guardado y ganancias offline", priority = 9)]
+    public static void ConfigurarPaso9()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        DestruirDescendiente(area.transform, "AvisoOffline");
+
+        // Raíz siempre activa (tiene el script); el panel es lo que se prende y apaga
+        RectTransform raiz = CrearHijoEstirado("AvisoOffline", area.transform);
+        raiz.SetAsLastSibling();
+
+        RectTransform panel = CrearHijoEstirado("Panel", raiz);
+        Image oscuro = panel.gameObject.AddComponent<Image>();
+        Color sombra = Tema.texto;
+        sombra.a = 0.45f;
+        oscuro.color = sombra; // bloquea los toques de atrás
+
+        RectTransform tarjeta = CrearRect("Tarjeta", panel);
+        tarjeta.anchorMin = tarjeta.anchorMax = new Vector2(0.5f, 0.5f);
+        tarjeta.pivot = new Vector2(0.5f, 0.5f);
+        tarjeta.sizeDelta = new Vector2(880f, 620f);
+        tarjeta.anchoredPosition = Vector2.zero;
+        AgregarImagenRedondeada(tarjeta.gameObject, Tema.panel, 0.3f);
+
+        TextMeshProUGUI titulo = CrearTexto("Titulo", tarjeta, "¡Volviste!", 60, Tema.texto);
+        FilaArriba(titulo.rectTransform, 40f, 40f, 50f, 80f);
+
+        TextMeshProUGUI explicacion = CrearTexto("Explicacion", tarjeta, "Mientras no estabas, tu equipo facturó", 34, Tema.textoSuave);
+        explicacion.fontStyle = FontStyles.Normal;
+        FilaArriba(explicacion.rectTransform, 40f, 40f, 145f, 50f);
+
+        TextMeshProUGUI monto = CrearTexto("TextoMonto", tarjeta, "$0", 100, Tema.plata);
+        monto.enableAutoSizing = true;
+        monto.fontSizeMin = 50f;
+        monto.fontSizeMax = 100f;
+        FilaArriba(monto.rectTransform, 40f, 40f, 205f, 120f);
+
+        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", tarjeta, "Estuviste afuera 1 h", 28, Tema.textoSuave);
+        detalle.fontStyle = FontStyles.Normal;
+        FilaArriba(detalle.rectTransform, 40f, 40f, 335f, 44f);
+
+        RectTransform rtBoton = CrearRect("BotonCerrar", tarjeta);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(0.5f, 0f);
+        rtBoton.pivot = new Vector2(0.5f, 0f);
+        rtBoton.sizeDelta = new Vector2(480f, 130f);
+        rtBoton.anchoredPosition = new Vector2(0f, 50f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Tema.botonFacturar, 0.3f);
+        Button boton = rtBoton.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, imgBoton);
+        TextMeshProUGUI textoBoton = CrearTexto("Texto", rtBoton, "¡Genial!", 48, Tema.textoBoton);
+        Estirar(textoBoton.rectTransform);
+
+        UIAvisoOffline aviso = raiz.gameObject.AddComponent<UIAvisoOffline>();
+        SerializedObject so = new SerializedObject(aviso);
+        so.FindProperty("panel").objectReferenceValue = panel.gameObject;
+        so.FindProperty("tarjeta").objectReferenceValue = tarjeta;
+        so.FindProperty("textoMonto").objectReferenceValue = monto;
+        so.FindProperty("textoDetalle").objectReferenceValue = detalle;
+        so.FindProperty("botonCerrar").objectReferenceValue = boton;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        panel.gameObject.SetActive(false); // oculto hasta que haya algo que mostrar
+
+        GuardarEscenaActiva();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 9 listo. La partida se guarda en " + Application.persistentDataPath);
+    }
+
+    [MenuItem("CEO Clicker/Herramientas/Abrir carpeta de guardado", priority = 100)]
+    public static void AbrirCarpetaGuardado()
+    {
+        EditorUtility.RevealInFinder(Application.persistentDataPath);
+    }
+
+    [MenuItem("CEO Clicker/Herramientas/Borrar partida guardada", priority = 101)]
+    public static void BorrarGuardado()
+    {
+        if (EditorApplication.isPlaying)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Frená el Play primero (si no, se vuelve a guardar enseguida).", "OK");
+            return;
+        }
+
+        if (EditorUtility.DisplayDialog("CEO Clicker", "¿Borrar la partida guardada? No se puede deshacer.", "Borrar", "Cancelar"))
+        {
+            SistemaGuardado.Borrar();
+            Debug.Log("Partida borrada.");
+        }
+    }
+
+    // =================================================================
     // TEMA: aplica los colores de Datos/Tema y reconstruye la interfaz
     // =================================================================
     [MenuItem("CEO Clicker/Aplicar tema (reconstruir interfaz)", priority = 50)]
@@ -537,6 +632,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso6();
         ConfigurarPaso7();
         ConfigurarPaso8();
+        ConfigurarPaso9();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;
