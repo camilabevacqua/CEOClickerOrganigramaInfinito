@@ -639,6 +639,108 @@ public static class ConfiguradorProyecto
         Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 10 listo. Mirá la pestaña Empresa.");
     }
 
+    // =================================================================
+    // PASO 11: sonido y vibración
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 11 - Sonido y vibración", priority = 11)]
+    public static void ConfigurarPaso11()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        Transform panelEmpresa = BuscarDescendiente(area.transform, "PanelEmpresa");
+        Transform contenido = panelEmpresa != null ? BuscarDescendiente(panelEmpresa, "Contenido") : null;
+        Transform tarjetaBorrar = contenido != null ? BuscarDescendiente(contenido, "TarjetaBorrar") : null;
+        if (tarjetaBorrar == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 10 (falta la pestaña Empresa completa).", "OK");
+            return;
+        }
+
+        // 1) Objeto Feedback con su AudioSource
+        Feedback feedback = Object.FindFirstObjectByType<Feedback>();
+        if (feedback == null)
+        {
+            GameObject go = new GameObject("Feedback");
+            go.AddComponent<AudioSource>();
+            feedback = go.AddComponent<Feedback>();
+        }
+        AudioSource fuente = feedback.GetComponent<AudioSource>();
+        fuente.playOnAwake = false;
+        fuente.spatialBlend = 0f;
+
+        // Sonidos por defecto (solo si el campo está vacío, para no pisar los tuyos)
+        SerializedObject soFeedback = new SerializedObject(feedback);
+        AsignarSonidoSiFalta(soFeedback, "sonidoFacturar", "facturar.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoContratar", "contratar.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoMejorar", "mejorar.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoEtapa", "etapa.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoBolsa", "bolsa.wav");
+        soFeedback.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2) Tarjeta de ajustes en la pestaña Empresa (antes de "Borrar partida")
+        DestruirDescendiente(contenido, "TarjetaAjustes");
+        RectTransform tarjeta = CrearTarjeta("TarjetaAjustes", contenido, 200f);
+        tarjeta.SetSiblingIndex(tarjetaBorrar.GetSiblingIndex());
+
+        TextMeshProUGUI titulo = CrearTexto("Titulo", tarjeta, "Ajustes", 36, Tema.texto);
+        titulo.alignment = TextAlignmentOptions.MidlineLeft;
+        FilaArriba(titulo.rectTransform, 32f, 32f, 20f, 50f);
+
+        RectTransform fila = CrearRect("Botones", tarjeta);
+        fila.anchorMin = new Vector2(0f, 0f);
+        fila.anchorMax = new Vector2(1f, 0f);
+        fila.pivot = new Vector2(0.5f, 0f);
+        fila.offsetMin = new Vector2(32f, 26f);
+        fila.offsetMax = new Vector2(-32f, 116f);
+        HorizontalLayoutGroup hl = fila.gameObject.AddComponent<HorizontalLayoutGroup>();
+        hl.spacing = 20f;
+        hl.childControlWidth = true;
+        hl.childControlHeight = true;
+        hl.childForceExpandWidth = true;
+        hl.childForceExpandHeight = true;
+
+        Button botonSonido = CrearBotonAjuste("BotonSonido", fila, "Sonido: Sí", out TextMeshProUGUI textoSonido);
+        Button botonVibracion = CrearBotonAjuste("BotonVibracion", fila, "Vibración: Sí", out TextMeshProUGUI textoVibracion);
+
+        UIAjustes ajustes = tarjeta.gameObject.AddComponent<UIAjustes>();
+        SerializedObject so = new SerializedObject(ajustes);
+        so.FindProperty("botonSonido").objectReferenceValue = botonSonido;
+        so.FindProperty("botonVibracion").objectReferenceValue = botonVibracion;
+        so.FindProperty("textoSonido").objectReferenceValue = textoSonido;
+        so.FindProperty("textoVibracion").objectReferenceValue = textoVibracion;
+        so.FindProperty("colorEncendido").colorValue = Tema.botonContratar;
+        so.FindProperty("colorApagado").colorValue = Tema.bloqueado;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        Selection.activeGameObject = feedback.gameObject;
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 11 listo. Cambiá los sonidos en el objeto Feedback.");
+    }
+
+    private static void AsignarSonidoSiFalta(SerializedObject so, string propiedad, string archivo)
+    {
+        SerializedProperty prop = so.FindProperty(propiedad);
+        if (prop == null || prop.objectReferenceValue != null) return;
+
+        AudioClip clip = AssetDatabase.LoadAssetAtPath<AudioClip>(RaizProyecto + "/Audio/" + archivo);
+        if (clip != null) prop.objectReferenceValue = clip;
+    }
+
+    private static Button CrearBotonAjuste(string nombre, Transform padre, string texto, out TextMeshProUGUI textoBoton)
+    {
+        RectTransform rt = CrearRect(nombre, padre);
+        Image img = AgregarImagenRedondeada(rt.gameObject, Tema.botonContratar, 0.3f);
+        Button boton = rt.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, img);
+
+        textoBoton = CrearTexto("Texto", rt, texto, 32, Tema.textoBoton);
+        Estirar(textoBoton.rectTransform);
+        return boton;
+    }
+
     private static RectTransform CrearTarjeta(string nombre, Transform padre, float alto)
     {
         RectTransform tarjeta = CrearRect(nombre, padre);
@@ -751,6 +853,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso8();
         ConfigurarPaso9();
         ConfigurarPaso10();
+        ConfigurarPaso11();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;
