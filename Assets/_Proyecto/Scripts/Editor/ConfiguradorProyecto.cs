@@ -405,6 +405,52 @@ public static class ConfiguradorProyecto
     }
 
     // =================================================================
+    // PASO 7: organigrama visual
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 7 - Organigrama", priority = 7)]
+    public static void ConfigurarPaso7()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        Transform panel = BuscarDescendiente(area.transform, "PanelOrganigrama");
+        if (panel == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 3 (falta el PanelOrganigrama).", "OK");
+            return;
+        }
+
+        // Se vacía el panel (texto provisorio o restos de una corrida anterior)
+        for (int i = panel.childCount - 1; i >= 0; i--)
+        {
+            Object.DestroyImmediate(panel.GetChild(i).gameObject);
+        }
+        UIOrganigrama viejo = panel.GetComponent<UIOrganigrama>();
+        if (viejo != null) Object.DestroyImmediate(viejo);
+
+        // Recorta lo que se salga del panel
+        if (panel.GetComponent<RectMask2D>() == null) panel.gameObject.AddComponent<RectMask2D>();
+
+        UIOrganigrama organigrama = panel.gameObject.AddComponent<UIOrganigrama>();
+        Color linea = Tema.textoSuave;
+        linea.a = 0.6f;
+
+        SerializedObject so = new SerializedObject(organigrama);
+        so.FindProperty("spriteNodo").objectReferenceValue = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
+        so.FindProperty("colorCEO").colorValue = Tema.botonFacturar;
+        so.FindProperty("colorTextoNodo").colorValue = Tema.textoBoton;
+        so.FindProperty("colorLinea").colorValue = linea;
+        so.FindProperty("colorMas").colorValue = Tema.bloqueado;
+        so.FindProperty("colorAyuda").colorValue = Tema.textoSuave;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 7 listo. Contratá gente y mirá crecer el organigrama.");
+    }
+
+    // =================================================================
     // TEMA: aplica los colores de Datos/Tema y reconstruye la interfaz
     // =================================================================
     [MenuItem("CEO Clicker/Aplicar tema (reconstruir interfaz)", priority = 50)]
@@ -450,6 +496,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso4();
         ConfigurarPaso5();
         ConfigurarPaso6();
+        ConfigurarPaso7();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;
@@ -1395,7 +1442,8 @@ public static class ConfiguradorProyecto
     private static Image AgregarImagenRedondeada(GameObject go, Color color, float multiplicadorEsquinas)
     {
         Image img = go.AddComponent<Image>();
-        img.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+        // "Background" es el redondeado liso de Unity (sin el borde gris de "UISprite")
+        img.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
         img.type = Image.Type.Sliced;
         img.pixelsPerUnitMultiplier = multiplicadorEsquinas; // más chico = esquinas más redondas
         img.color = color;
