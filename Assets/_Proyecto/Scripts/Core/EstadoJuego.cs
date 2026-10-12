@@ -21,4 +21,7 @@ public class EstadoJuego
 
     // Acciones ganadas al salir a la bolsa (prestigio). No se reinician.
     public int acciones;
+
+    // Cantidad contratada de cada puesto, en el mismo orden que la lista de puestos del GameManager
+    public int[] cantidadesPuestos = new int[0];
 }

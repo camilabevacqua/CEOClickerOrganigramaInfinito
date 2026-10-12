@@ -17,6 +17,8 @@ public static class ConfiguradorProyecto
 {
     private const string RaizProyecto = "Assets/_Proyecto";
     private const string RutaEscena = RaizProyecto + "/Escenas/Principal.unity";
+    private const string CarpetaPuestos = RaizProyecto + "/Datos/Puestos";
+    private const string RutaPrefabPuesto = RaizProyecto + "/Prefabs/ItemPuesto.prefab";
 
     private static readonly string[] Carpetas =
     {
@@ -28,7 +30,9 @@ public static class ConfiguradorProyecto
     // Paleta del juego
     private const string ColorFondo = "#E7ECF2";
     private const string ColorPanel = "#FFFFFF";
+    private const string ColorTarjeta = "#F3F5F8";
     private const string ColorTexto = "#13203A";
+    private const string ColorTextoSuave = "#5A6478";
     private const string ColorPlata = "#0A7458";
     private const string ColorPlataOscuro = "#07513D";
     private const string ColorAcento = "#9A5B00";
@@ -81,17 +85,11 @@ public static class ConfiguradorProyecto
     {
         if (!TextMeshProListo()) return;
 
-        SafeArea area = Object.FindFirstObjectByType<SafeArea>();
-        if (area == null)
-        {
-            EditorUtility.DisplayDialog("CEO Clicker",
-                "No encontré el objeto AreaSegura en la escena abierta.\nAbrí la escena Principal (o corré el Paso 1) y probá de nuevo.",
-                "OK");
-            return;
-        }
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
 
         // Ya no necesitamos la imagen roja de prueba
-        DestruirHijo(area.transform, "Prueba");
+        DestruirDescendiente(area.transform, "Prueba");
 
         // GameManager (uno solo)
         if (Object.FindFirstObjectByType<GameManager>() == null)
@@ -102,18 +100,74 @@ public static class ConfiguradorProyecto
         }
 
         // Si ya existían de una corrida anterior, se recrean
-        DestruirHijo(area.transform, "TextoPlata");
-        DestruirHijo(area.transform, "BotonFacturar");
+        DestruirDescendiente(area.transform, "TextoPlata");
+        DestruirDescendiente(area.transform, "BotonFacturar");
 
         CrearTextoPlata(area.transform);
         GameObject boton = CrearBotonFacturar(area.transform);
 
-        Scene escena = SceneManager.GetActiveScene();
-        EditorSceneManager.MarkSceneDirty(escena);
-        EditorSceneManager.SaveScene(escena);
+        GuardarEscenaActiva();
 
         Selection.activeGameObject = boton;
         Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 2 listo. Dale Play y tocá Facturar.");
+    }
+
+    // =================================================================
+    // PASO 3: puestos (ScriptableObjects), layout y lista de Personal
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 3 - Puestos y lista de Personal", priority = 3)]
+    public static void ConfigurarPaso3()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        Transform boton = BuscarDescendiente(area.transform, "BotonFacturar");
+        if (gm == null || boton == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 2 (falta el GameManager o el botón Facturar).", "OK");
+            return;
+        }
+
+        CrearCarpetas();
+
+        // 1) Datos de los puestos
+        PuestoData[] puestos = CrearPuestos();
+
+        SerializedObject soGm = new SerializedObject(gm);
+        SerializedProperty lista = soGm.FindProperty("puestos");
+        lista.arraySize = puestos.Length;
+        for (int i = 0; i < puestos.Length; i++)
+        {
+            lista.GetArrayElementAtIndex(i).objectReferenceValue = puestos[i];
+        }
+        soGm.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2) Layout general de la pantalla
+        RectTransform zonaFacturar = BuscarOCrearHijo("ZonaFacturar", area.transform);
+        Ubicar(zonaFacturar, new Vector2(0f, 0.70f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(0f, -240f));
+
+        RectTransform rtBoton = (RectTransform)boton;
+        rtBoton.SetParent(zonaFacturar, false);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(0.5f, 0.5f);
+        rtBoton.pivot = new Vector2(0.5f, 0.5f);
+        rtBoton.sizeDelta = new Vector2(720f, 230f);
+        rtBoton.anchoredPosition = Vector2.zero;
+
+        DestruirDescendiente(area.transform, "PanelOrganigrama");
+        CrearPanelOrganigramaProvisorio(area.transform);
+
+        DestruirDescendiente(area.transform, "PanelPestanas");
+        UIPuestoItem prefab = CrearPrefabItemPuesto();
+        CrearPanelPestanas(area.transform, prefab);
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+
+        Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 3 listo. Puestos en " + CarpetaPuestos +
+                  ". Dale Play, facturá $15 y contratá un Empleado.");
     }
 
     // =================================================================
@@ -217,65 +271,289 @@ public static class ConfiguradorProyecto
     private static GameObject CrearBotonFacturar(Transform padre)
     {
         const float hundimiento = 18f;
-        Sprite redondeado = SpriteRedondeado();
 
         // Raíz = sombra (también es la zona que recibe el toque)
-        GameObject raiz = new GameObject("BotonFacturar", typeof(RectTransform));
-        raiz.layer = LayerMask.NameToLayer("UI");
-        RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
-        rtRaiz.SetParent(padre, false);
+        RectTransform rtRaiz = CrearRect("BotonFacturar", padre);
         rtRaiz.anchorMin = rtRaiz.anchorMax = new Vector2(0.5f, 0.5f);
         rtRaiz.pivot = new Vector2(0.5f, 0.5f);
         rtRaiz.sizeDelta = new Vector2(760f, 280f);
         rtRaiz.anchoredPosition = new Vector2(0f, -100f);
 
-        Image sombra = raiz.AddComponent<Image>();
-        sombra.sprite = redondeado;
-        sombra.type = Image.Type.Sliced;
-        sombra.pixelsPerUnitMultiplier = 0.25f; // esquinas más redondas
-        sombra.color = Hex(ColorPlataOscuro);
+        Image sombra = AgregarImagenRedondeada(rtRaiz.gameObject, Hex(ColorPlataOscuro), 0.25f);
 
         // Cara: igual de grande, pero levantada "hundimiento" píxeles
         RectTransform rtCara = CrearHijoEstirado("Cara", rtRaiz);
         rtCara.offsetMin = new Vector2(0f, hundimiento);
         rtCara.offsetMax = new Vector2(0f, hundimiento);
 
-        Image cara = rtCara.gameObject.AddComponent<Image>();
-        cara.sprite = redondeado;
-        cara.type = Image.Type.Sliced;
-        cara.pixelsPerUnitMultiplier = 0.25f;
-        cara.color = Hex(ColorPlata);
+        Image cara = AgregarImagenRedondeada(rtCara.gameObject, Hex(ColorPlata), 0.25f);
         cara.raycastTarget = false; // el toque lo recibe la raíz
 
         TextMeshProUGUI texto = CrearTexto("Texto", rtCara, "Facturar", 100, Color.white);
-        RectTransform rtTexto = texto.rectTransform;
-        rtTexto.anchorMin = Vector2.zero;
-        rtTexto.anchorMax = Vector2.one;
-        rtTexto.offsetMin = Vector2.zero;
-        rtTexto.offsetMax = Vector2.zero;
+        Estirar(texto.rectTransform);
 
-        // Botón: aclara/oscurece la cara al apretar
-        Button boton = raiz.AddComponent<Button>();
-        boton.targetGraphic = cara;
-        ColorBlock colores = boton.colors;
-        colores.normalColor = Color.white;
-        colores.highlightedColor = Color.white;
-        colores.pressedColor = new Color(0.85f, 0.85f, 0.85f);
-        colores.selectedColor = Color.white;
-        colores.fadeDuration = 0.05f;
-        boton.colors = colores;
-        Navigation nav = boton.navigation;
-        nav.mode = Navigation.Mode.None;
-        boton.navigation = nav;
+        Button boton = rtRaiz.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, cara);
 
         // Script del botón, con sus referencias asignadas
-        UIBotonFacturar script = raiz.AddComponent<UIBotonFacturar>();
+        UIBotonFacturar script = rtRaiz.gameObject.AddComponent<UIBotonFacturar>();
         SerializedObject so = new SerializedObject(script);
         so.FindProperty("cara").objectReferenceValue = rtCara;
         so.FindProperty("hundimiento").floatValue = hundimiento;
         so.ApplyModifiedPropertiesWithoutUndo();
 
-        return raiz;
+        return rtRaiz.gameObject;
+    }
+
+    // =================================================================
+    // Partes del Paso 3
+    // =================================================================
+    private static PuestoData[] CrearPuestos()
+    {
+        PuestoData empleado = CrearOObtenerPuesto(1, "empleado", "Empleado", "Empleados", "E", "#64748B",
+            "Hace el trabajo de verdad. Mate en mano, factura de a poquito.",
+            15, 0.4, 3, false, out bool nuevoE);
+
+        PuestoData supervisor = CrearOObtenerPuesto(2, "supervisor", "Supervisor", "Supervisores", "S", "#2C6A9A",
+            "Controla que nadie se cuelgue con el celular.",
+            120, 3, 2, false, out bool nuevoS);
+
+        PuestoData gerente = CrearOObtenerPuesto(3, "gerente", "Gerente", "Gerentes", "G", "#0A7458",
+            "Arma reuniones que podrían haber sido un mail.",
+            1300, 20, 2, false, out bool nuevoG);
+
+        PuestoData director = CrearOObtenerPuesto(4, "director", "Director", "Directores", "D", "#9A5B00",
+            "Define la estrategia desde un sillón de cuero.",
+            15000, 120, 2, false, out bool nuevoD);
+
+        PuestoData vice = CrearOObtenerPuesto(5, "vicepresidente", "Vicepresidente", "Vicepresidentes", "VP", "#6D3FC4",
+            "Viaja en business y cierra tratos enormes.",
+            180000, 800, 0, true, out bool nuevoVP);
+
+        // Jefes: solo en los recién creados (para no pisar lo que balanceaste a mano)
+        if (nuevoE) { empleado.jefe = supervisor; empleado.lugaresPorJefe = 5; }
+        if (nuevoS) { supervisor.jefe = gerente; supervisor.lugaresPorJefe = 4; }
+        if (nuevoG) { gerente.jefe = director; gerente.lugaresPorJefe = 3; }
+        if (nuevoD) { director.jefe = vice; director.lugaresPorJefe = 3; }
+        if (nuevoVP) { vice.jefe = null; vice.lugaresPorJefe = 0; }
+
+        PuestoData[] todos = { empleado, supervisor, gerente, director, vice };
+        foreach (PuestoData p in todos) EditorUtility.SetDirty(p);
+        AssetDatabase.SaveAssets();
+        return todos;
+    }
+
+    private static PuestoData CrearOObtenerPuesto(int orden, string id, string nombre, string plural, string inicial,
+        string colorHex, string descripcion, double costo, double produccion, int lugaresBase, bool sinLimite,
+        out bool nuevo)
+    {
+        string ruta = $"{CarpetaPuestos}/{orden}_{nombre}.asset";
+        PuestoData existente = AssetDatabase.LoadAssetAtPath<PuestoData>(ruta);
+        if (existente != null)
+        {
+            nuevo = false;
+            return existente;
+        }
+
+        PuestoData p = ScriptableObject.CreateInstance<PuestoData>();
+        p.id = id;
+        p.nombre = nombre;
+        p.nombrePlural = plural;
+        p.inicial = inicial;
+        p.color = Hex(colorHex);
+        p.descripcion = descripcion;
+        p.costoBase = costo;
+        p.produccionPorSegundo = produccion;
+        p.lugaresBase = lugaresBase;
+        p.sinLimite = sinLimite;
+
+        AssetDatabase.CreateAsset(p, ruta);
+        nuevo = true;
+        return p;
+    }
+
+    private static void CrearPanelOrganigramaProvisorio(Transform padre)
+    {
+        RectTransform panel = CrearRect("PanelOrganigrama", padre);
+        Ubicar(panel, new Vector2(0f, 0.46f), new Vector2(1f, 0.70f), new Vector2(24f, 12f), new Vector2(-24f, -12f));
+        AgregarImagenRedondeada(panel.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+
+        TextMeshProUGUI texto = CrearTexto("TextoProvisorio", panel, "Organigrama (Paso 7)", 40, Hex(ColorTextoSuave));
+        texto.fontStyle = FontStyles.Normal;
+        Estirar(texto.rectTransform);
+    }
+
+    private static void CrearPanelPestanas(Transform padre, UIPuestoItem prefab)
+    {
+        RectTransform panel = CrearRect("PanelPestanas", padre);
+        Ubicar(panel, new Vector2(0f, 0f), new Vector2(1f, 0.46f), new Vector2(24f, 24f), new Vector2(-24f, -12f));
+        AgregarImagenRedondeada(panel.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+
+        // --- Panel Personal ---
+        RectTransform personal = CrearHijoEstirado("PanelPersonal", panel);
+
+        // Encabezado: título + selector x1/x10/Máx
+        RectTransform encabezado = CrearRect("Encabezado", personal);
+        Ubicar(encabezado, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -110f), new Vector2(0f, 0f));
+
+        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, "Personal", 46, Hex(ColorTexto));
+        titulo.alignment = TextAlignmentOptions.MidlineLeft;
+        Ubicar(titulo.rectTransform, new Vector2(0f, 0f), new Vector2(0.5f, 1f), new Vector2(32f, 0f), new Vector2(0f, 0f));
+
+        RectTransform selector = CrearRect("Selector", encabezado);
+        selector.anchorMin = selector.anchorMax = new Vector2(1f, 0.5f);
+        selector.pivot = new Vector2(1f, 0.5f);
+        selector.sizeDelta = new Vector2(450f, 80f);
+        selector.anchoredPosition = new Vector2(-24f, 0f);
+        HorizontalLayoutGroup hl = selector.gameObject.AddComponent<HorizontalLayoutGroup>();
+        hl.spacing = 12f;
+        hl.childControlWidth = true;
+        hl.childControlHeight = true;
+        hl.childForceExpandWidth = true;
+        hl.childForceExpandHeight = true;
+
+        Button bX1 = CrearBotonChico("BotonX1", selector, "x1");
+        Button bX10 = CrearBotonChico("BotonX10", selector, "x10");
+        Button bMax = CrearBotonChico("BotonMax", selector, "Máx");
+
+        // Lista con scroll
+        RectTransform scroll = CrearRect("Scroll", personal);
+        Ubicar(scroll, Vector2.zero, Vector2.one, new Vector2(0f, 0f), new Vector2(0f, -110f));
+        Image zonaToque = scroll.gameObject.AddComponent<Image>();
+        zonaToque.color = new Color(1f, 1f, 1f, 0f); // invisible, pero recibe el arrastre
+
+        RectTransform viewport = CrearHijoEstirado("Viewport", scroll);
+        viewport.gameObject.AddComponent<RectMask2D>();
+
+        RectTransform contenido = CrearRect("Contenido", viewport);
+        contenido.anchorMin = new Vector2(0f, 1f);
+        contenido.anchorMax = new Vector2(1f, 1f);
+        contenido.pivot = new Vector2(0.5f, 1f);
+        contenido.sizeDelta = Vector2.zero;
+        contenido.anchoredPosition = Vector2.zero;
+
+        VerticalLayoutGroup vl = contenido.gameObject.AddComponent<VerticalLayoutGroup>();
+        vl.padding = new RectOffset(16, 16, 4, 24);
+        vl.spacing = 14f;
+        vl.childAlignment = TextAnchor.UpperCenter;
+        vl.childControlWidth = true;
+        vl.childControlHeight = true;
+        vl.childForceExpandWidth = true;
+        vl.childForceExpandHeight = false;
+
+        ContentSizeFitter fitter = contenido.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ScrollRect sr = scroll.gameObject.AddComponent<ScrollRect>();
+        sr.horizontal = false;
+        sr.vertical = true;
+        sr.movementType = ScrollRect.MovementType.Elastic;
+        sr.scrollSensitivity = 40f;
+        sr.viewport = viewport;
+        sr.content = contenido;
+
+        // Script de la lista
+        UIListaPersonal listaUI = personal.gameObject.AddComponent<UIListaPersonal>();
+        SerializedObject so = new SerializedObject(listaUI);
+        so.FindProperty("prefabItem").objectReferenceValue = prefab;
+        so.FindProperty("contenedor").objectReferenceValue = contenido;
+        so.FindProperty("botonX1").objectReferenceValue = bX1;
+        so.FindProperty("botonX10").objectReferenceValue = bX10;
+        so.FindProperty("botonMax").objectReferenceValue = bMax;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>Crea (o recrea) el prefab de la fila de un puesto.</summary>
+    private static UIPuestoItem CrearPrefabItemPuesto()
+    {
+        const float alto = 220f;
+        const float izquierdaTextos = 188f;  // 24 margen + 140 insignia + 24
+        const float derechaTextos = 328f;    // 24 margen + 280 botón + 24
+
+        GameObject raiz = new GameObject("ItemPuesto", typeof(RectTransform));
+        raiz.layer = LayerMask.NameToLayer("UI");
+        RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
+        rtRaiz.sizeDelta = new Vector2(1000f, alto);
+
+        AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f).raycastTarget = false;
+        LayoutElement le = raiz.AddComponent<LayoutElement>();
+        le.minHeight = alto;
+        le.preferredHeight = alto;
+
+        // Insignia de color con la inicial
+        RectTransform rtInsignia = CrearRect("Insignia", rtRaiz);
+        rtInsignia.anchorMin = rtInsignia.anchorMax = new Vector2(0f, 0.5f);
+        rtInsignia.pivot = new Vector2(0f, 0.5f);
+        rtInsignia.sizeDelta = new Vector2(140f, 140f);
+        rtInsignia.anchoredPosition = new Vector2(24f, 0f);
+        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Color.gray, 0.3f);
+        insignia.raycastTarget = false;
+
+        TextMeshProUGUI inicial = CrearTexto("Inicial", rtInsignia, "E", 56, Color.white);
+        Estirar(inicial.rectTransform);
+
+        // Textos del medio
+        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Puesto", 42, Hex(ColorTexto));
+        nombre.alignment = TextAlignmentOptions.MidlineLeft;
+        nombre.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(nombre.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
+
+        TextMeshProUGUI cantidad = CrearTexto("TextoCantidad", rtRaiz, "0 / 3", 36, Hex(ColorTexto));
+        cantidad.alignment = TextAlignmentOptions.MidlineRight;
+        FilaArriba(cantidad.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
+
+        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "+$0/s c/u", 26, Hex(ColorPlata));
+        detalle.alignment = TextAlignmentOptions.MidlineLeft;
+        detalle.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(detalle.rectTransform, izquierdaTextos, derechaTextos, 80f, 40f);
+
+        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 26, Hex(ColorTextoSuave));
+        descripcion.fontStyle = FontStyles.Normal;
+        descripcion.alignment = TextAlignmentOptions.TopLeft;
+        descripcion.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(descripcion.rectTransform, izquierdaTextos, derechaTextos, 124f, 80f);
+
+        // Botón Contratar
+        RectTransform rtBoton = CrearRect("BotonComprar", rtRaiz);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(1f, 0.5f);
+        rtBoton.pivot = new Vector2(1f, 0.5f);
+        rtBoton.sizeDelta = new Vector2(280f, 150f);
+        rtBoton.anchoredPosition = new Vector2(-24f, 0f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Hex(ColorPlata), 0.3f);
+        Button boton = rtBoton.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, imgBoton);
+
+        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Contratar x1\n$15", 30, Color.white);
+        Estirar(textoBoton.rectTransform);
+
+        // Script con referencias
+        UIPuestoItem item = raiz.AddComponent<UIPuestoItem>();
+        SerializedObject so = new SerializedObject(item);
+        so.FindProperty("insignia").objectReferenceValue = insignia;
+        so.FindProperty("textoInicial").objectReferenceValue = inicial;
+        so.FindProperty("textoNombre").objectReferenceValue = nombre;
+        so.FindProperty("textoCantidad").objectReferenceValue = cantidad;
+        so.FindProperty("textoDetalle").objectReferenceValue = detalle;
+        so.FindProperty("textoDescripcion").objectReferenceValue = descripcion;
+        so.FindProperty("botonComprar").objectReferenceValue = boton;
+        so.FindProperty("textoBoton").objectReferenceValue = textoBoton;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabPuesto);
+        Object.DestroyImmediate(raiz);
+        return prefab.GetComponent<UIPuestoItem>();
+    }
+
+    private static Button CrearBotonChico(string nombre, Transform padre, string texto)
+    {
+        RectTransform rt = CrearRect(nombre, padre);
+        Image img = AgregarImagenRedondeada(rt.gameObject, Hex(ColorFondo), 0.3f);
+        Button b = rt.gameObject.AddComponent<Button>();
+        ConfigurarBoton(b, img);
+
+        TextMeshProUGUI t = CrearTexto("Texto", rt, texto, 36, Hex(ColorTexto));
+        Estirar(t.rectTransform);
+        return b;
     }
 
     // =================================================================
@@ -293,13 +571,30 @@ public static class ConfiguradorProyecto
         return false;
     }
 
+    private static SafeArea BuscarAreaSegura()
+    {
+        SafeArea area = Object.FindFirstObjectByType<SafeArea>();
+        if (area == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker",
+                "No encontré el objeto AreaSegura en la escena abierta.\nAbrí la escena Principal (o corré el Paso 1) y probá de nuevo.",
+                "OK");
+        }
+        return area;
+    }
+
+    private static void GuardarEscenaActiva()
+    {
+        Scene escena = SceneManager.GetActiveScene();
+        EditorSceneManager.MarkSceneDirty(escena);
+        EditorSceneManager.SaveScene(escena);
+    }
+
     private static TextMeshProUGUI CrearTexto(string nombre, Transform padre, string contenido, float tamanio, Color color)
     {
-        GameObject go = new GameObject(nombre, typeof(RectTransform));
-        go.layer = LayerMask.NameToLayer("UI");
-        go.GetComponent<RectTransform>().SetParent(padre, false);
+        RectTransform rt = CrearRect(nombre, padre);
 
-        TextMeshProUGUI t = go.AddComponent<TextMeshProUGUI>();
+        TextMeshProUGUI t = rt.gameObject.AddComponent<TextMeshProUGUI>();
         t.text = contenido;
         t.fontSize = tamanio;
         t.color = color;
@@ -309,31 +604,97 @@ public static class ConfiguradorProyecto
         return t;
     }
 
-    private static RectTransform CrearHijoEstirado(string nombre, Transform padre)
+    private static RectTransform CrearRect(string nombre, Transform padre)
     {
         GameObject go = new GameObject(nombre, typeof(RectTransform));
         go.layer = LayerMask.NameToLayer("UI");
-
         RectTransform rt = go.GetComponent<RectTransform>();
-        rt.SetParent(padre, false);
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = Vector2.zero;
-        rt.offsetMax = Vector2.zero;
-        rt.pivot = new Vector2(0.5f, 0.5f);
+        if (padre != null) rt.SetParent(padre, false);
         return rt;
     }
 
-    private static void DestruirHijo(Transform padre, string nombre)
+    private static RectTransform CrearHijoEstirado(string nombre, Transform padre)
     {
-        Transform hijo = padre.Find(nombre);
-        if (hijo != null) Object.DestroyImmediate(hijo.gameObject);
+        RectTransform rt = CrearRect(nombre, padre);
+        Estirar(rt);
+        return rt;
     }
 
-    private static Sprite SpriteRedondeado()
+    private static RectTransform BuscarOCrearHijo(string nombre, Transform padre)
     {
-        // Sprite redondeado que viene con Unity (el mismo de los botones por defecto)
-        return AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+        Transform t = padre.Find(nombre);
+        return t != null ? (RectTransform)t : CrearRect(nombre, padre);
+    }
+
+    private static void Estirar(RectTransform rt)
+    {
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.offsetMin = Vector2.zero;
+        rt.offsetMax = Vector2.zero;
+    }
+
+    private static void Ubicar(RectTransform rt, Vector2 anclaMin, Vector2 anclaMax, Vector2 offsetMin, Vector2 offsetMax)
+    {
+        rt.anchorMin = anclaMin;
+        rt.anchorMax = anclaMax;
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.offsetMin = offsetMin;
+        rt.offsetMax = offsetMax;
+    }
+
+    /// <summary>Fila pegada arriba: margen izquierdo/derecho, distancia desde arriba y alto.</summary>
+    private static void FilaArriba(RectTransform rt, float izquierda, float derecha, float desdeArriba, float alto)
+    {
+        rt.anchorMin = new Vector2(0f, 1f);
+        rt.anchorMax = new Vector2(1f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.offsetMin = new Vector2(izquierda, -desdeArriba - alto);
+        rt.offsetMax = new Vector2(-derecha, -desdeArriba);
+    }
+
+    private static Image AgregarImagenRedondeada(GameObject go, Color color, float multiplicadorEsquinas)
+    {
+        Image img = go.AddComponent<Image>();
+        img.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/UISprite.psd");
+        img.type = Image.Type.Sliced;
+        img.pixelsPerUnitMultiplier = multiplicadorEsquinas; // más chico = esquinas más redondas
+        img.color = color;
+        return img;
+    }
+
+    private static void ConfigurarBoton(Button boton, Graphic objetivo)
+    {
+        boton.targetGraphic = objetivo;
+
+        ColorBlock colores = boton.colors;
+        colores.normalColor = Color.white;
+        colores.highlightedColor = Color.white;
+        colores.pressedColor = new Color(0.85f, 0.85f, 0.85f);
+        colores.selectedColor = Color.white;
+        colores.disabledColor = new Color(0.75f, 0.75f, 0.75f, 0.5f);
+        colores.fadeDuration = 0.05f;
+        boton.colors = colores;
+
+        Navigation nav = boton.navigation;
+        nav.mode = Navigation.Mode.None;
+        boton.navigation = nav;
+    }
+
+    private static Transform BuscarDescendiente(Transform padre, string nombre)
+    {
+        foreach (Transform hijo in padre.GetComponentsInChildren<Transform>(true))
+        {
+            if (hijo != padre && hijo.name == nombre) return hijo;
+        }
+        return null;
+    }
+
+    private static void DestruirDescendiente(Transform padre, string nombre)
+    {
+        Transform hijo = BuscarDescendiente(padre, nombre);
+        if (hijo != null) Object.DestroyImmediate(hijo.gameObject);
     }
 
     private static Color Hex(string hex)

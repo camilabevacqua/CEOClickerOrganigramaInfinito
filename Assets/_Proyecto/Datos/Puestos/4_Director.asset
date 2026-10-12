@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e70b6112e4241b742a3cc06f12f63c44, type: 3}
+  m_Name: 4_Director
+  m_EditorClassIdentifier: 
+  id: director
+  nombre: Director
+  nombrePlural: Directores
+  inicial: D
+  color: {r: 0.6039216, g: 0.35686275, b: 0, a: 1}
+  descripcion: "Define la estrategia desde un sill\xF3n de cuero."
+  costoBase: 15000
+  produccionPorSegundo: 120
+  sinLimite: 0
+  lugaresBase: 2
+  jefe: {fileID: 11400000, guid: 11b3f4877f81d844da7928b3362533b7, type: 2}
+  lugaresPorJefe: 3
