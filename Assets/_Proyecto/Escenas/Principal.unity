@@ -1035,6 +1035,60 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 0}
+--- !u!1 &370126674
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 370126675}
+  - component: {fileID: 370126676}
+  m_Layer: 5
+  m_Name: CapaFlotante
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &370126675
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 370126674}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 908437381}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &370126676
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 370126674}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5715b04e68c9f6f4f8adb4c47254fecb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  boton: {fileID: 2125267554}
+  color: {r: 0.8392157, g: 0.3529412, b: 0.57254905, a: 1}
+  tamanioLetra: 64
+  duracion: 0.9
+  subida: 200
+  desvioHorizontal: 50
 --- !u!1 &417981336
 GameObject:
   m_ObjectHideFlags: 0
@@ -1549,6 +1603,11 @@ MonoBehaviour:
   colorAyuda: {r: 0.6117647, g: 0.47843137, b: 0.5764706, a: 1}
   grosorLinea: 3
   margen: 20
+  colorSigno: {r: 0.8392157, g: 0.3529412, b: 0.57254905, a: 1}
+  maxSignosPorSegundo: 5
+  duracionPop: 0.35
+  duracionLatido: 0.18
+  duracionSigno: 1.1
 --- !u!1 &619398032
 GameObject:
   m_ObjectHideFlags: 0
@@ -3352,6 +3411,7 @@ RectTransform:
   - {fileID: 508842874}
   - {fileID: 803247364}
   - {fileID: 1007692217}
+  - {fileID: 370126675}
   m_Father: {fileID: 357600827}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}

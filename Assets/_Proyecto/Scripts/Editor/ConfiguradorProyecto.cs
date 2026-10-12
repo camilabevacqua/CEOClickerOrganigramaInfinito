@@ -451,6 +451,45 @@ public static class ConfiguradorProyecto
     }
 
     // =================================================================
+    // PASO 8: animaciones y feedback
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 8 - Animaciones y feedback", priority = 8)]
+    public static void ConfigurarPaso8()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        UIBotonFacturar boton = Object.FindFirstObjectByType<UIBotonFacturar>();
+        UIOrganigrama organigrama = Object.FindFirstObjectByType<UIOrganigrama>();
+        if (boton == null || organigrama == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré los Pasos 2 y 7 (falta el botón Facturar o el organigrama).", "OK");
+            return;
+        }
+
+        // Capa para los "+$X": cubre el área segura, va encima de todo y no bloquea toques
+        DestruirDescendiente(area.transform, "CapaFlotante");
+        RectTransform capa = CrearHijoEstirado("CapaFlotante", area.transform);
+        capa.SetAsLastSibling();
+
+        UITextosFlotantes flotantes = capa.gameObject.AddComponent<UITextosFlotantes>();
+        SerializedObject soFlotantes = new SerializedObject(flotantes);
+        soFlotantes.FindProperty("boton").objectReferenceValue = boton;
+        soFlotantes.FindProperty("color").colorValue = Tema.plata;
+        soFlotantes.ApplyModifiedPropertiesWithoutUndo();
+
+        // Color de los "$" del organigrama
+        SerializedObject soOrganigrama = new SerializedObject(organigrama);
+        soOrganigrama.FindProperty("colorSigno").colorValue = Tema.plata;
+        soOrganigrama.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 8 listo. Facturá y contratá para ver las animaciones.");
+    }
+
+    // =================================================================
     // TEMA: aplica los colores de Datos/Tema y reconstruye la interfaz
     // =================================================================
     [MenuItem("CEO Clicker/Aplicar tema (reconstruir interfaz)", priority = 50)]
@@ -497,6 +536,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso5();
         ConfigurarPaso6();
         ConfigurarPaso7();
+        ConfigurarPaso8();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;

@@ -19,6 +19,12 @@ public class UIBotonFacturar : MonoBehaviour, IPointerDownHandler, IPointerUpHan
     private Vector2 posicionOriginal;
     private bool hundido;
 
+    /// <summary>Posición en pantalla del último toque (para el "+$X" flotante).</summary>
+    public Vector2 UltimaPosicionToque { get; private set; }
+
+    /// <summary>False si todavía no hubo ningún toque (ej: clic con teclado).</summary>
+    public bool HuboToque { get; private set; }
+
     private void Awake()
     {
         boton = GetComponent<Button>();
@@ -44,7 +50,12 @@ public class UIBotonFacturar : MonoBehaviour, IPointerDownHandler, IPointerUpHan
         }
     }
 
-    public void OnPointerDown(PointerEventData eventData) => Hundir(true);
+    public void OnPointerDown(PointerEventData eventData)
+    {
+        UltimaPosicionToque = eventData.position;
+        HuboToque = true;
+        Hundir(true);
+    }
     public void OnPointerUp(PointerEventData eventData) => Hundir(false);
     public void OnPointerExit(PointerEventData eventData) => Hundir(false);
 
