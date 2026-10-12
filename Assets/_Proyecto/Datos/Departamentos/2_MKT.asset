@@ -15,7 +15,7 @@ MonoBehaviour:
   id: marketing
   nombre: Marketing
   sigla: MKT
-  color: {r: 0.7607843, g: 0.25490198, b: 0.047058824, a: 1}
+  color: {r: 0.9490196, g: 0.6039216, b: 0.36078432, a: 1}
   descripcion: "Publicidad en redes: el clic vale m\xE1s, suma 1% de tu $/s por nivel
     y la producci\xF3n sube +10%."
   costoBase: 60

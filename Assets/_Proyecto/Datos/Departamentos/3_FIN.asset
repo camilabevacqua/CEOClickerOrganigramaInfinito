@@ -15,7 +15,7 @@ MonoBehaviour:
   id: finanzas
   nombre: Finanzas
   sigla: FIN
-  color: {r: 0.42745098, g: 0.24705882, b: 0.76862746, a: 1}
+  color: {r: 0.6117647, g: 0.5176471, b: 0.85882354, a: 1}
   descripcion: "Contadores creativos: contratar sale 5% m\xE1s barato por nivel."
   costoBase: 2500
   multiplicadorCosto: 2.8

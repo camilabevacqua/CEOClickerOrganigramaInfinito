@@ -16,7 +16,7 @@ MonoBehaviour:
   nombre: Director
   nombrePlural: Directores
   inicial: D
-  color: {r: 0.6039216, g: 0.35686275, b: 0, a: 1}
+  color: {r: 0.9607843, g: 0.63529414, b: 0.41960785, a: 1}
   descripcion: "Define la estrategia desde un sill\xF3n de cuero."
   costoBase: 15000
   produccionPorSegundo: 120

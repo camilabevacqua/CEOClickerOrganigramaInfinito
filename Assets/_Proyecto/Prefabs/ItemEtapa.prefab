@@ -75,7 +75,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.07450981, g: 0.1254902, b: 0.22745098, a: 1}
+  m_fontColor: {r: 0.35686275, g: 0.22745098, b: 0.33333334, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -212,7 +212,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.3529412, g: 0.39215687, b: 0.47058824, a: 1}
+  m_fontColor: {r: 0.6117647, g: 0.47843137, b: 0.5764706, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:
@@ -333,7 +333,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.6039216, g: 0.35686275, b: 0, a: 1}
+  m_Color: {r: 0.60784316, g: 0.49803922, b: 0.83137256, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -414,7 +414,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 0}
-  m_Color: {r: 0.9529412, g: 0.9607843, b: 0.972549, a: 1}
+  m_Color: {r: 1, g: 0.9647059, b: 0.9764706, a: 1}
   m_RaycastTarget: 0
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -469,13 +469,13 @@ MonoBehaviour:
   textoEtapa: {fileID: 8344038372542854613}
   textoEmpresa: {fileID: 2408935185393524711}
   textoMeta: {fileID: 2642549883481355652}
-  fondoNormal: {r: 0.9529412, g: 0.9607843, b: 0.972549, a: 1}
-  fondoActual: {r: 1, g: 0.94509804, b: 0.8627451, a: 1}
-  colorLograda: {r: 0.039215688, g: 0.45490196, b: 0.34509805, a: 1}
-  colorActual: {r: 0.6039216, g: 0.35686275, b: 0, a: 1}
-  colorFutura: {r: 0.654902, g: 0.6901961, b: 0.74509805, a: 1}
-  colorTexto: {r: 0.07450981, g: 0.1254902, b: 0.22745098, a: 1}
-  colorTextoSuave: {r: 0.3529412, g: 0.39215687, b: 0.47058824, a: 1}
+  fondoNormal: {r: 1, g: 0.9647059, b: 0.9764706, a: 1}
+  fondoActual: {r: 1, g: 0.8901961, b: 0.93333334, a: 1}
+  colorLograda: {r: 0.3019608, g: 0.70980394, b: 0.57254905, a: 1}
+  colorActual: {r: 0.8784314, g: 0.4509804, b: 0.62352943, a: 1}
+  colorFutura: {r: 0.8627451, g: 0.8117647, b: 0.84705883, a: 1}
+  colorTexto: {r: 0.35686275, g: 0.22745098, b: 0.33333334, a: 1}
+  colorTextoSuave: {r: 0.6117647, g: 0.47843137, b: 0.5764706, a: 1}
 --- !u!1 &4828639054492730890
 GameObject:
   m_ObjectHideFlags: 0
@@ -688,7 +688,7 @@ MonoBehaviour:
   m_fontColor32:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontColor: {r: 0.6039216, g: 0.35686275, b: 0, a: 1}
+  m_fontColor: {r: 0.60784316, g: 0.49803922, b: 0.83137256, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:

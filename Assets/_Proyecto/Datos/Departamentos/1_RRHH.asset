@@ -15,7 +15,7 @@ MonoBehaviour:
   id: rrhh
   nombre: Recursos Humanos
   sigla: RRHH
-  color: {r: 0.17254902, g: 0.41568628, b: 0.6039216, a: 1}
+  color: {r: 0.93333334, g: 0.49803922, b: 0.6901961, a: 1}
   descripcion: 'Capacitaciones y after office: todo el personal produce +25% por
     nivel.'
   costoBase: 400

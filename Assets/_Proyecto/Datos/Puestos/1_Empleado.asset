@@ -16,7 +16,7 @@ MonoBehaviour:
   nombre: Empleado
   nombrePlural: Empleados
   inicial: E
-  color: {r: 0.39215687, g: 0.45490196, b: 0.54509807, a: 1}
+  color: {r: 0.56078434, g: 0.6392157, b: 0.8784314, a: 1}
   descripcion: Hace el trabajo de verdad. Mate en mano, factura de a poquito.
   costoBase: 15
   produccionPorSegundo: 0.4

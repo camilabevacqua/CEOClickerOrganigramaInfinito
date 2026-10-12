@@ -16,7 +16,7 @@ MonoBehaviour:
   nombre: Supervisor
   nombrePlural: Supervisores
   inicial: S
-  color: {r: 0.17254902, g: 0.41568628, b: 0.6039216, a: 1}
+  color: {r: 0.42352942, g: 0.7647059, b: 0.8509804, a: 1}
   descripcion: Controla que nadie se cuelgue con el celular.
   costoBase: 120
   produccionPorSegundo: 3

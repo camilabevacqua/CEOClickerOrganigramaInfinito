@@ -31,15 +31,18 @@ public static class ConfiguradorProyecto
         "Prefabs", "Escenas", "Sprites", "Audio"
     };
 
-    // Paleta del juego
-    private const string ColorFondo = "#E7ECF2";
-    private const string ColorPanel = "#FFFFFF";
-    private const string ColorTarjeta = "#F3F5F8";
-    private const string ColorTexto = "#13203A";
-    private const string ColorTextoSuave = "#5A6478";
-    private const string ColorPlata = "#0A7458";
-    private const string ColorPlataOscuro = "#07513D";
-    private const string ColorAcento = "#9A5B00";
+    // Paleta del juego: se lee de Datos/Tema.asset (se crea solo con la paleta pastel)
+    private const string RutaTema = RaizProyecto + "/Datos/Tema.asset";
+    private static TemaColores temaCache;
+
+    private static TemaColores Tema
+    {
+        get
+        {
+            if (temaCache == null) temaCache = CargarOCrearTema();
+            return temaCache;
+        }
+    }
 
     // =================================================================
     // PASO 1: carpetas, escena, cámara, EventSystem, Canvas y área segura
@@ -297,7 +300,7 @@ public static class ConfiguradorProyecto
         RectTransform panelEmpresa = CrearRect("PanelEmpresa", panelPestanas);
         Ubicar(panelEmpresa, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -100f));
         TextMeshProUGUI provisorio = CrearTexto("TextoProvisorio", panelEmpresa,
-            "Etapas, salir a la bolsa y borrar partida\n(Pasos 6 y 10)", 36, Hex(ColorTextoSuave));
+            "Etapas, salir a la bolsa y borrar partida\n(Pasos 6 y 10)", 36, Tema.textoSuave);
         provisorio.fontStyle = FontStyles.Normal;
         Estirar(provisorio.rectTransform);
 
@@ -317,6 +320,10 @@ public static class ConfiguradorProyecto
             elemento.FindPropertyRelative("boton").objectReferenceValue = botones[i];
             elemento.FindPropertyRelative("panel").objectReferenceValue = paneles[i];
         }
+        soPestanas.FindProperty("colorSeleccionado").colorValue = Tema.seleccion;
+        soPestanas.FindProperty("colorNormal").colorValue = Tema.botonSecundario;
+        soPestanas.FindProperty("textoSeleccionado").colorValue = Tema.textoBoton;
+        soPestanas.FindProperty("textoNormal").colorValue = Tema.texto;
         soPestanas.ApplyModifiedPropertiesWithoutUndo();
 
         GuardarEscenaActiva();
@@ -371,7 +378,7 @@ public static class ConfiguradorProyecto
         CrearEncabezado(panelEmpresa, "Empresa");
         RectTransform contenido = CrearListaConScroll(panelEmpresa, 110f);
 
-        TextMeshProUGUI tituloEtapas = CrearTexto("TituloEtapas", contenido, "Etapas", 36, Hex(ColorTexto));
+        TextMeshProUGUI tituloEtapas = CrearTexto("TituloEtapas", contenido, "Etapas", 36, Tema.texto);
         tituloEtapas.alignment = TextAlignmentOptions.MidlineLeft;
         tituloEtapas.margin = new Vector4(8f, 0f, 0f, 0f);
         tituloEtapas.gameObject.AddComponent<LayoutElement>().preferredHeight = 60f;
@@ -395,6 +402,91 @@ public static class ConfiguradorProyecto
         AssetDatabase.SaveAssets();
 
         Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 6 listo. Etapas en " + RutaEtapas + ".");
+    }
+
+    // =================================================================
+    // TEMA: aplica los colores de Datos/Tema y reconstruye la interfaz
+    // =================================================================
+    [MenuItem("CEO Clicker/Aplicar tema (reconstruir interfaz)", priority = 50)]
+    public static void AplicarTema()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        if (gm == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 2 (falta el GameManager).", "OK");
+            return;
+        }
+
+        if (!EditorUtility.DisplayDialog("CEO Clicker",
+                "Se va a reconstruir toda la interfaz con los colores de Datos/Tema.\n" +
+                "También se recolorean los puestos y departamentos.\n\n¿Seguimos?",
+                "Sí, aplicar", "Cancelar"))
+        {
+            return;
+        }
+
+        CrearCarpetas();
+        TemaColores tema = Tema;
+
+        // Colores de los datos (puestos y departamentos), en el orden del GameManager
+        RecolorearLista(gm, "puestos", tema.coloresPuestos);
+        RecolorearLista(gm, "departamentos", tema.coloresDepartamentos);
+
+        // Cámara y fondo
+        Camera cam = Object.FindFirstObjectByType<Camera>();
+        if (cam != null) cam.backgroundColor = tema.fondo;
+
+        Transform fondo = area.transform.parent != null ? area.transform.parent.Find("Fondo") : null;
+        if (fondo != null && fondo.TryGetComponent(out Image imgFondo)) imgFondo.color = tema.fondo;
+
+        // Se rearma la interfaz con los pasos existentes (en orden)
+        ConfigurarPaso2();
+        ConfigurarPaso3();
+        ConfigurarPaso4();
+        ConfigurarPaso5();
+        ConfigurarPaso6();
+
+        AssetDatabase.SaveAssets();
+        Selection.activeObject = tema;
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Tema aplicado. Podés editar los colores en " + RutaTema +
+                  " y volver a usar este menú.");
+    }
+
+    private static void RecolorearLista(GameManager gm, string propiedad, Color[] colores)
+    {
+        SerializedObject so = new SerializedObject(gm);
+        SerializedProperty lista = so.FindProperty(propiedad);
+        if (lista == null || colores == null) return;
+
+        for (int i = 0; i < lista.arraySize && i < colores.Length; i++)
+        {
+            Object dato = lista.GetArrayElementAtIndex(i).objectReferenceValue;
+            if (dato == null) continue;
+
+            SerializedObject soDato = new SerializedObject(dato);
+            SerializedProperty color = soDato.FindProperty("color");
+            if (color == null) continue;
+            color.colorValue = colores[i];
+            soDato.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(dato);
+        }
+    }
+
+    private static TemaColores CargarOCrearTema()
+    {
+        TemaColores tema = AssetDatabase.LoadAssetAtPath<TemaColores>(RutaTema);
+        if (tema != null) return tema;
+
+        CrearCarpeta(RaizProyecto + "/Datos");
+        tema = ScriptableObject.CreateInstance<TemaColores>(); // valores por defecto = paleta pastel
+        AssetDatabase.CreateAsset(tema, RutaTema);
+        AssetDatabase.SaveAssets();
+        return tema;
     }
 
     // =================================================================
@@ -429,7 +521,7 @@ public static class ConfiguradorProyecto
         cam.orthographic = true;
         cam.orthographicSize = 5f;
         cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.backgroundColor = Hex(ColorFondo);
+        cam.backgroundColor = Tema.fondo;
 
         go.AddComponent<AudioListener>();
     }
@@ -461,7 +553,7 @@ public static class ConfiguradorProyecto
         // Fondo: fuera del área segura, para que pinte también la zona del notch
         RectTransform fondo = CrearHijoEstirado("Fondo", go.transform);
         Image imgFondo = fondo.gameObject.AddComponent<Image>();
-        imgFondo.color = Hex(ColorFondo);
+        imgFondo.color = Tema.fondo;
         imgFondo.raycastTarget = false;
 
         // Contenedor que respeta Screen.safeArea: TODA la interfaz va adentro
@@ -482,7 +574,7 @@ public static class ConfiguradorProyecto
     // =================================================================
     private static void CrearTextoPlata(Transform padre)
     {
-        TextMeshProUGUI texto = CrearTexto("TextoPlata", padre, "$0", 110, Hex(ColorPlata));
+        TextMeshProUGUI texto = CrearTexto("TextoPlata", padre, "$0", 110, Tema.plata);
 
         // Arriba de todo, a lo ancho, con 40 px de margen a cada lado
         RectTransform rt = texto.rectTransform;
@@ -491,8 +583,7 @@ public static class ConfiguradorProyecto
         rt.pivot = new Vector2(0.5f, 1f);
         rt.sizeDelta = new Vector2(-80f, 160f);
         rt.anchoredPosition = new Vector2(0f, -80f);
-
-        texto.gameObject.AddComponent<UITextoPlata>();
+        // (Provisorio: en el Paso 4 lo reemplaza la barra superior)
     }
 
     private static GameObject CrearBotonFacturar(Transform padre)
@@ -506,17 +597,17 @@ public static class ConfiguradorProyecto
         rtRaiz.sizeDelta = new Vector2(760f, 280f);
         rtRaiz.anchoredPosition = new Vector2(0f, -100f);
 
-        Image sombra = AgregarImagenRedondeada(rtRaiz.gameObject, Hex(ColorPlataOscuro), 0.25f);
+        Image sombra = AgregarImagenRedondeada(rtRaiz.gameObject, Tema.botonFacturarSombra, 0.25f);
 
         // Cara: igual de grande, pero levantada "hundimiento" píxeles
         RectTransform rtCara = CrearHijoEstirado("Cara", rtRaiz);
         rtCara.offsetMin = new Vector2(0f, hundimiento);
         rtCara.offsetMax = new Vector2(0f, hundimiento);
 
-        Image cara = AgregarImagenRedondeada(rtCara.gameObject, Hex(ColorPlata), 0.25f);
+        Image cara = AgregarImagenRedondeada(rtCara.gameObject, Tema.botonFacturar, 0.25f);
         cara.raycastTarget = false; // el toque lo recibe la raíz
 
-        TextMeshProUGUI texto = CrearTexto("Texto", rtCara, "Facturar", 100, Color.white);
+        TextMeshProUGUI texto = CrearTexto("Texto", rtCara, "Facturar", 100, Tema.textoBoton);
         Estirar(texto.rectTransform);
 
         Button boton = rtRaiz.gameObject.AddComponent<Button>();
@@ -587,7 +678,7 @@ public static class ConfiguradorProyecto
         p.nombre = nombre;
         p.nombrePlural = plural;
         p.inicial = inicial;
-        p.color = Hex(colorHex);
+        p.color = orden - 1 < Tema.coloresPuestos.Length ? Tema.coloresPuestos[orden - 1] : Hex(colorHex);
         p.descripcion = descripcion;
         p.costoBase = costo;
         p.produccionPorSegundo = produccion;
@@ -603,9 +694,9 @@ public static class ConfiguradorProyecto
     {
         RectTransform panel = CrearRect("PanelOrganigrama", padre);
         Ubicar(panel, new Vector2(0f, 0.46f), new Vector2(1f, 0.70f), new Vector2(24f, 12f), new Vector2(-24f, -12f));
-        AgregarImagenRedondeada(panel.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+        AgregarImagenRedondeada(panel.gameObject, Tema.panel, 0.4f).raycastTarget = false;
 
-        TextMeshProUGUI texto = CrearTexto("TextoProvisorio", panel, "Organigrama (Paso 7)", 40, Hex(ColorTextoSuave));
+        TextMeshProUGUI texto = CrearTexto("TextoProvisorio", panel, "Organigrama (Paso 7)", 40, Tema.textoSuave);
         texto.fontStyle = FontStyles.Normal;
         Estirar(texto.rectTransform);
     }
@@ -614,7 +705,7 @@ public static class ConfiguradorProyecto
     {
         RectTransform panel = CrearRect("PanelPestanas", padre);
         Ubicar(panel, new Vector2(0f, 0f), new Vector2(1f, 0.46f), new Vector2(24f, 24f), new Vector2(-24f, -12f));
-        AgregarImagenRedondeada(panel.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+        AgregarImagenRedondeada(panel.gameObject, Tema.panel, 0.4f).raycastTarget = false;
 
         // --- Panel Personal ---
         RectTransform personal = CrearHijoEstirado("PanelPersonal", panel);
@@ -623,7 +714,7 @@ public static class ConfiguradorProyecto
         RectTransform encabezado = CrearRect("Encabezado", personal);
         Ubicar(encabezado, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -110f), new Vector2(0f, 0f));
 
-        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, "Personal", 46, Hex(ColorTexto));
+        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, "Personal", 46, Tema.texto);
         titulo.alignment = TextAlignmentOptions.MidlineLeft;
         Ubicar(titulo.rectTransform, new Vector2(0f, 0f), new Vector2(0.5f, 1f), new Vector2(32f, 0f), new Vector2(0f, 0f));
 
@@ -687,6 +778,10 @@ public static class ConfiguradorProyecto
         so.FindProperty("botonX1").objectReferenceValue = bX1;
         so.FindProperty("botonX10").objectReferenceValue = bX10;
         so.FindProperty("botonMax").objectReferenceValue = bMax;
+        so.FindProperty("colorSeleccionado").colorValue = Tema.seleccion;
+        so.FindProperty("colorNormal").colorValue = Tema.botonSecundario;
+        so.FindProperty("textoSeleccionado").colorValue = Tema.textoBoton;
+        so.FindProperty("textoNormal").colorValue = Tema.texto;
         so.ApplyModifiedPropertiesWithoutUndo();
     }
 
@@ -702,7 +797,7 @@ public static class ConfiguradorProyecto
         RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
         rtRaiz.sizeDelta = new Vector2(1000f, alto);
 
-        AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f).raycastTarget = false;
+        AgregarImagenRedondeada(raiz, Tema.tarjeta, 0.4f).raycastTarget = false;
         LayoutElement le = raiz.AddComponent<LayoutElement>();
         le.minHeight = alto;
         le.preferredHeight = alto;
@@ -713,23 +808,23 @@ public static class ConfiguradorProyecto
         rtInsignia.pivot = new Vector2(0f, 0.5f);
         rtInsignia.sizeDelta = new Vector2(140f, 140f);
         rtInsignia.anchoredPosition = new Vector2(24f, 0f);
-        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Color.gray, 0.3f);
+        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Tema.bloqueado, 0.3f);
         insignia.raycastTarget = false;
 
-        TextMeshProUGUI inicial = CrearTexto("Inicial", rtInsignia, "E", 56, Color.white);
+        TextMeshProUGUI inicial = CrearTexto("Inicial", rtInsignia, "E", 56, Tema.textoBoton);
         Estirar(inicial.rectTransform);
 
         // Textos del medio
-        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Puesto", 42, Hex(ColorTexto));
+        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Puesto", 42, Tema.texto);
         nombre.alignment = TextAlignmentOptions.MidlineLeft;
         nombre.overflowMode = TextOverflowModes.Ellipsis;
         FilaArriba(nombre.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
 
-        TextMeshProUGUI cantidad = CrearTexto("TextoCantidad", rtRaiz, "0 / 3", 36, Hex(ColorTexto));
+        TextMeshProUGUI cantidad = CrearTexto("TextoCantidad", rtRaiz, "0 / 3", 36, Tema.texto);
         cantidad.alignment = TextAlignmentOptions.MidlineRight;
         FilaArriba(cantidad.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
 
-        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "+$0/s c/u", 26, Hex(ColorPlata));
+        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "+$0/s c/u", 26, Tema.plata);
         detalle.alignment = TextAlignmentOptions.MidlineLeft;
         detalle.overflowMode = TextOverflowModes.Ellipsis;
         detalle.enableAutoSizing = true; // achica la letra si no entra (ej: "Supervisores")
@@ -737,7 +832,7 @@ public static class ConfiguradorProyecto
         detalle.fontSizeMax = 26f;
         FilaArriba(detalle.rectTransform, izquierdaTextos, derechaTextos, 80f, 40f);
 
-        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 26, Hex(ColorTextoSuave));
+        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 26, Tema.textoSuave);
         descripcion.fontStyle = FontStyles.Normal;
         descripcion.alignment = TextAlignmentOptions.TopLeft;
         descripcion.overflowMode = TextOverflowModes.Ellipsis;
@@ -749,11 +844,11 @@ public static class ConfiguradorProyecto
         rtBoton.pivot = new Vector2(1f, 0.5f);
         rtBoton.sizeDelta = new Vector2(280f, 150f);
         rtBoton.anchoredPosition = new Vector2(-24f, 0f);
-        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Hex(ColorPlata), 0.3f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Tema.botonContratar, 0.3f);
         Button boton = rtBoton.gameObject.AddComponent<Button>();
         ConfigurarBoton(boton, imgBoton);
 
-        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Contratar x1\n$15", 30, Color.white);
+        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Contratar x1\n$15", 30, Tema.textoBoton);
         Estirar(textoBoton.rectTransform);
 
         // Script con referencias
@@ -767,6 +862,9 @@ public static class ConfiguradorProyecto
         so.FindProperty("textoDescripcion").objectReferenceValue = descripcion;
         so.FindProperty("botonComprar").objectReferenceValue = boton;
         so.FindProperty("textoBoton").objectReferenceValue = textoBoton;
+        so.FindProperty("colorBloqueado").colorValue = Tema.bloqueado;
+        so.FindProperty("colorDescripcion").colorValue = Tema.textoSuave;
+        so.FindProperty("colorAviso").colorValue = Tema.aviso;
         so.ApplyModifiedPropertiesWithoutUndo();
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabPuesto);
@@ -785,15 +883,15 @@ public static class ConfiguradorProyecto
         barra.pivot = new Vector2(0.5f, 1f);
         barra.offsetMin = new Vector2(24f, -246f); // alto 230, 16 px desde arriba
         barra.offsetMax = new Vector2(-24f, -16f);
-        AgregarImagenRedondeada(barra.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+        AgregarImagenRedondeada(barra.gameObject, Tema.panel, 0.4f).raycastTarget = false;
 
         // Izquierda: etapa y nombre de empresa (en el Paso 6 se vuelven dinámicos)
-        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", barra, "Freelancer en un garaje", 28, Hex(ColorAcento));
+        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", barra, "Freelancer en un garaje", 28, Tema.acento);
         etapa.alignment = TextAlignmentOptions.MidlineLeft;
         etapa.overflowMode = TextOverflowModes.Ellipsis;
         FilaArriba(etapa.rectTransform, 32f, 520f, 30f, 40f);
 
-        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", barra, "Garaje Unipersonal", 44, Hex(ColorTexto));
+        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", barra, "Garaje Unipersonal", 44, Tema.texto);
         empresa.alignment = TextAlignmentOptions.MidlineLeft;
         empresa.overflowMode = TextOverflowModes.Ellipsis;
         empresa.enableAutoSizing = true;
@@ -802,14 +900,14 @@ public static class ConfiguradorProyecto
         FilaArriba(empresa.rectTransform, 32f, 520f, 72f, 64f);
 
         // Derecha: plata y $/seg
-        TextMeshProUGUI plata = CrearTexto("TextoPlata", barra, "$0", 80, Hex(ColorPlata));
+        TextMeshProUGUI plata = CrearTexto("TextoPlata", barra, "$0", 80, Tema.plata);
         plata.alignment = TextAlignmentOptions.MidlineRight;
         plata.enableAutoSizing = true;
         plata.fontSizeMin = 50f;
         plata.fontSizeMax = 80f;
         FilaArriba(plata.rectTransform, 500f, 32f, 18f, 96f);
 
-        TextMeshProUGUI porSegundo = CrearTexto("TextoPorSegundo", barra, "+$0/s", 32, Hex(ColorTextoSuave));
+        TextMeshProUGUI porSegundo = CrearTexto("TextoPorSegundo", barra, "+$0/s", 32, Tema.textoSuave);
         porSegundo.alignment = TextAlignmentOptions.MidlineRight;
         FilaArriba(porSegundo.rectTransform, 500f, 32f, 112f, 44f);
 
@@ -820,7 +918,7 @@ public static class ConfiguradorProyecto
         fondoBarra.pivot = new Vector2(0.5f, 0f);
         fondoBarra.offsetMin = new Vector2(32f, 26f);
         fondoBarra.offsetMax = new Vector2(-32f, 48f); // 22 px de alto
-        AgregarImagenRedondeada(fondoBarra.gameObject, Hex(ColorFondo), 1f).raycastTarget = false;
+        AgregarImagenRedondeada(fondoBarra.gameObject, Tema.barraFondo, 1f).raycastTarget = false;
 
         RectTransform relleno = CrearRect("Relleno", fondoBarra);
         relleno.anchorMin = Vector2.zero;
@@ -828,7 +926,7 @@ public static class ConfiguradorProyecto
         relleno.pivot = new Vector2(0f, 0.5f);
         relleno.offsetMin = Vector2.zero;
         relleno.offsetMax = Vector2.zero;
-        AgregarImagenRedondeada(relleno.gameObject, Hex(ColorAcento), 1f).raycastTarget = false;
+        AgregarImagenRedondeada(relleno.gameObject, Tema.barraRelleno, 1f).raycastTarget = false;
 
         UIBarraSuperior script = barra.gameObject.AddComponent<UIBarraSuperior>();
         SerializedObject so = new SerializedObject(script);
@@ -868,9 +966,9 @@ public static class ConfiguradorProyecto
     private static TextMeshProUGUI CrearChipEstadistica(string nombre, Transform padre)
     {
         RectTransform chip = CrearRect("Chip" + nombre, padre);
-        AgregarImagenRedondeada(chip.gameObject, Hex(ColorPanel), 0.3f).raycastTarget = false;
+        AgregarImagenRedondeada(chip.gameObject, Tema.panel, 0.3f).raycastTarget = false;
 
-        TextMeshProUGUI t = CrearTexto("Texto", chip, nombre + " <b>0</b>", 30, Hex(ColorTexto));
+        TextMeshProUGUI t = CrearTexto("Texto", chip, nombre + " <b>0</b>", 30, Tema.texto);
         t.fontStyle = FontStyles.Normal;
         t.enableAutoSizing = true;
         t.fontSizeMin = 20f;
@@ -914,7 +1012,7 @@ public static class ConfiguradorProyecto
         d.id = id;
         d.nombre = nombre;
         d.sigla = sigla;
-        d.color = Hex(colorHex);
+        d.color = orden - 1 < Tema.coloresDepartamentos.Length ? Tema.coloresDepartamentos[orden - 1] : Hex(colorHex);
         d.descripcion = descripcion;
         d.costoBase = costo;
         d.multiplicadorCosto = multiplicador;
@@ -934,7 +1032,7 @@ public static class ConfiguradorProyecto
         RectTransform encabezado = CrearRect("Encabezado", padre);
         Ubicar(encabezado, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -110f), new Vector2(0f, 0f));
 
-        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, texto, 46, Hex(ColorTexto));
+        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, texto, 46, Tema.texto);
         titulo.alignment = TextAlignmentOptions.MidlineLeft;
         Ubicar(titulo.rectTransform, Vector2.zero, Vector2.one, new Vector2(32f, 0f), new Vector2(-32f, 0f));
         return encabezado;
@@ -993,7 +1091,7 @@ public static class ConfiguradorProyecto
         RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
         rtRaiz.sizeDelta = new Vector2(1000f, alto);
 
-        AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f).raycastTarget = false;
+        AgregarImagenRedondeada(raiz, Tema.tarjeta, 0.4f).raycastTarget = false;
         LayoutElement le = raiz.AddComponent<LayoutElement>();
         le.minHeight = alto;
         le.preferredHeight = alto;
@@ -1004,10 +1102,10 @@ public static class ConfiguradorProyecto
         rtInsignia.pivot = new Vector2(0f, 0.5f);
         rtInsignia.sizeDelta = new Vector2(140f, 140f);
         rtInsignia.anchoredPosition = new Vector2(24f, 0f);
-        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Color.gray, 0.3f);
+        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Tema.bloqueado, 0.3f);
         insignia.raycastTarget = false;
 
-        TextMeshProUGUI sigla = CrearTexto("Sigla", rtInsignia, "RRHH", 44, Color.white);
+        TextMeshProUGUI sigla = CrearTexto("Sigla", rtInsignia, "RRHH", 44, Tema.textoBoton);
         sigla.enableAutoSizing = true;
         sigla.fontSizeMin = 24f;
         sigla.fontSizeMax = 44f;
@@ -1015,7 +1113,7 @@ public static class ConfiguradorProyecto
         sigla.margin = new Vector4(8f, 0f, 8f, 0f);
 
         // Textos del medio
-        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Departamento", 40, Hex(ColorTexto));
+        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Departamento", 40, Tema.texto);
         nombre.alignment = TextAlignmentOptions.MidlineLeft;
         nombre.overflowMode = TextOverflowModes.Ellipsis;
         nombre.enableAutoSizing = true;
@@ -1023,11 +1121,11 @@ public static class ConfiguradorProyecto
         nombre.fontSizeMax = 40f;
         FilaArriba(nombre.rectTransform, izquierdaTextos, derechaTextos + 150f, 22f, 54f);
 
-        TextMeshProUGUI nivel = CrearTexto("TextoNivel", rtRaiz, "Nv. 0", 34, Hex(ColorTexto));
+        TextMeshProUGUI nivel = CrearTexto("TextoNivel", rtRaiz, "Nv. 0", 34, Tema.texto);
         nivel.alignment = TextAlignmentOptions.MidlineRight;
         FilaArriba(nivel.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
 
-        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "Ahora: ×1", 26, Hex(ColorPlata));
+        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "Ahora: ×1", 26, Tema.plata);
         detalle.alignment = TextAlignmentOptions.MidlineLeft;
         detalle.overflowMode = TextOverflowModes.Ellipsis;
         detalle.enableAutoSizing = true;
@@ -1035,7 +1133,7 @@ public static class ConfiguradorProyecto
         detalle.fontSizeMax = 26f;
         FilaArriba(detalle.rectTransform, izquierdaTextos, derechaTextos, 80f, 40f);
 
-        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 24, Hex(ColorTextoSuave));
+        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 24, Tema.textoSuave);
         descripcion.fontStyle = FontStyles.Normal;
         descripcion.alignment = TextAlignmentOptions.TopLeft;
         descripcion.overflowMode = TextOverflowModes.Ellipsis;
@@ -1047,11 +1145,11 @@ public static class ConfiguradorProyecto
         rtBoton.pivot = new Vector2(1f, 0.5f);
         rtBoton.sizeDelta = new Vector2(280f, 150f);
         rtBoton.anchoredPosition = new Vector2(-24f, 0f);
-        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Hex(ColorAcento), 0.3f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Tema.botonMejorar, 0.3f);
         Button boton = rtBoton.gameObject.AddComponent<Button>();
         ConfigurarBoton(boton, imgBoton);
 
-        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Mejorar\n$60", 30, Color.white);
+        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Mejorar\n$60", 30, Tema.textoBoton);
         Estirar(textoBoton.rectTransform);
 
         // Script con referencias
@@ -1115,7 +1213,7 @@ public static class ConfiguradorProyecto
         RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
         rtRaiz.sizeDelta = new Vector2(1000f, alto);
 
-        Image fondo = AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f);
+        Image fondo = AgregarImagenRedondeada(raiz, Tema.tarjeta, 0.4f);
         fondo.raycastTarget = false;
         LayoutElement le = raiz.AddComponent<LayoutElement>();
         le.minHeight = alto;
@@ -1129,25 +1227,25 @@ public static class ConfiguradorProyecto
         rtMarcador.anchoredPosition = new Vector2(24f, 0f);
         Image marcador = rtMarcador.gameObject.AddComponent<Image>();
         marcador.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Knob.psd");
-        marcador.color = Hex(ColorAcento);
+        marcador.color = Tema.acento;
         marcador.raycastTarget = false;
 
-        TextMeshProUGUI numero = CrearTexto("Numero", rtMarcador, "1", 34, Color.white);
+        TextMeshProUGUI numero = CrearTexto("Numero", rtMarcador, "1", 34, Tema.textoBoton);
         Estirar(numero.rectTransform);
 
         // Textos
-        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", rtRaiz, "Etapa", 34, Hex(ColorTexto));
+        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", rtRaiz, "Etapa", 34, Tema.texto);
         etapa.alignment = TextAlignmentOptions.MidlineLeft;
         etapa.overflowMode = TextOverflowModes.Ellipsis;
         FilaArriba(etapa.rectTransform, 120f, 260f, 14f, 48f);
 
-        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", rtRaiz, "Empresa", 26, Hex(ColorTextoSuave));
+        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", rtRaiz, "Empresa", 26, Tema.textoSuave);
         empresa.fontStyle = FontStyles.Normal;
         empresa.alignment = TextAlignmentOptions.MidlineLeft;
         empresa.overflowMode = TextOverflowModes.Ellipsis;
         FilaArriba(empresa.rectTransform, 120f, 260f, 62f, 40f);
 
-        TextMeshProUGUI meta = CrearTexto("TextoMeta", rtRaiz, "$0", 30, Hex(ColorAcento));
+        TextMeshProUGUI meta = CrearTexto("TextoMeta", rtRaiz, "$0", 30, Tema.acento);
         meta.alignment = TextAlignmentOptions.MidlineRight;
         RectTransform rtMeta = meta.rectTransform;
         rtMeta.anchorMin = new Vector2(1f, 0f);
@@ -1164,6 +1262,13 @@ public static class ConfiguradorProyecto
         so.FindProperty("textoEtapa").objectReferenceValue = etapa;
         so.FindProperty("textoEmpresa").objectReferenceValue = empresa;
         so.FindProperty("textoMeta").objectReferenceValue = meta;
+        so.FindProperty("fondoNormal").colorValue = Tema.tarjeta;
+        so.FindProperty("fondoActual").colorValue = Tema.fondoEtapaActual;
+        so.FindProperty("colorLograda").colorValue = Tema.etapaLograda;
+        so.FindProperty("colorActual").colorValue = Tema.etapaActual;
+        so.FindProperty("colorFutura").colorValue = Tema.bloqueado;
+        so.FindProperty("colorTexto").colorValue = Tema.texto;
+        so.FindProperty("colorTextoSuave").colorValue = Tema.textoSuave;
         so.ApplyModifiedPropertiesWithoutUndo();
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabEtapa);
@@ -1180,11 +1285,11 @@ public static class ConfiguradorProyecto
     private static Button CrearBotonChico(string nombre, Transform padre, string texto)
     {
         RectTransform rt = CrearRect(nombre, padre);
-        Image img = AgregarImagenRedondeada(rt.gameObject, Hex(ColorFondo), 0.3f);
+        Image img = AgregarImagenRedondeada(rt.gameObject, Tema.botonSecundario, 0.3f);
         Button b = rt.gameObject.AddComponent<Button>();
         ConfigurarBoton(b, img);
 
-        TextMeshProUGUI t = CrearTexto("Texto", rt, texto, 36, Hex(ColorTexto));
+        TextMeshProUGUI t = CrearTexto("Texto", rt, texto, 36, Tema.texto);
         Estirar(t.rectTransform);
         return b;
     }
