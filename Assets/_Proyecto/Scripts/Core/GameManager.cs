@@ -47,6 +47,16 @@ public class GameManager : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
+    private void Update()
+    {
+        // Producción automática: cada frame suma lo que corresponde al tiempo transcurrido
+        double porSegundo = IngresoPorSegundo;
+        if (porSegundo > 0)
+        {
+            SumarPlata(porSegundo * Time.deltaTime);
+        }
+    }
+
     /// <summary>Se asegura de que el estado tenga un lugar por cada puesto.</summary>
     private void AjustarEstado()
     {

@@ -171,6 +171,57 @@ public static class ConfiguradorProyecto
     }
 
     // =================================================================
+    // PASO 4: barra superior, estadísticas y ajuste del botón
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 4 - Barra superior y estadísticas", priority = 4)]
+    public static void ConfigurarPaso4()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        Transform zona = BuscarDescendiente(area.transform, "ZonaFacturar");
+        Transform boton = BuscarDescendiente(area.transform, "BotonFacturar");
+        UIListaPersonal listaPersonal = Object.FindFirstObjectByType<UIListaPersonal>();
+        if (zona == null || boton == null || listaPersonal == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 3 (falta la zona del botón o la lista de Personal).", "OK");
+            return;
+        }
+
+        // El texto de plata suelto del Paso 2 se reemplaza por la barra superior
+        DestruirDescendiente(area.transform, "TextoPlata");
+        DestruirDescendiente(area.transform, "BarraSuperior");
+        CrearBarraSuperior(area.transform);
+
+        // Zona del botón: debajo de la barra
+        RectTransform rtZona = (RectTransform)zona;
+        Ubicar(rtZona, new Vector2(0f, 0.70f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(0f, -262f));
+
+        // Botón pegado arriba de la zona, más bajo para dejar lugar a las estadísticas
+        RectTransform rtBoton = (RectTransform)boton;
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(0.5f, 1f);
+        rtBoton.pivot = new Vector2(0.5f, 1f);
+        rtBoton.sizeDelta = new Vector2(680f, 200f);
+        rtBoton.anchoredPosition = new Vector2(0f, -16f);
+
+        DestruirDescendiente(rtZona, "Estadisticas");
+        CrearEstadisticas(rtZona);
+
+        // Prefab de la fila de puesto actualizado (texto de detalle con tamaño automático)
+        UIPuestoItem prefab = CrearPrefabItemPuesto();
+        SerializedObject soLista = new SerializedObject(listaPersonal);
+        soLista.FindProperty("prefabItem").objectReferenceValue = prefab;
+        soLista.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+
+        Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 4 listo. Contratá Empleados y mirá cómo sube la plata sola.");
+    }
+
+    // =================================================================
     // Partes del Paso 1
     // =================================================================
     private static void CrearCarpetas()
@@ -505,6 +556,9 @@ public static class ConfiguradorProyecto
         TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "+$0/s c/u", 26, Hex(ColorPlata));
         detalle.alignment = TextAlignmentOptions.MidlineLeft;
         detalle.overflowMode = TextOverflowModes.Ellipsis;
+        detalle.enableAutoSizing = true; // achica la letra si no entra (ej: "Supervisores")
+        detalle.fontSizeMin = 18f;
+        detalle.fontSizeMax = 26f;
         FilaArriba(detalle.rectTransform, izquierdaTextos, derechaTextos, 80f, 40f);
 
         TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 26, Hex(ColorTextoSuave));
@@ -542,6 +596,111 @@ public static class ConfiguradorProyecto
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabPuesto);
         Object.DestroyImmediate(raiz);
         return prefab.GetComponent<UIPuestoItem>();
+    }
+
+    // =================================================================
+    // Partes del Paso 4
+    // =================================================================
+    private static void CrearBarraSuperior(Transform padre)
+    {
+        RectTransform barra = CrearRect("BarraSuperior", padre);
+        barra.anchorMin = new Vector2(0f, 1f);
+        barra.anchorMax = new Vector2(1f, 1f);
+        barra.pivot = new Vector2(0.5f, 1f);
+        barra.offsetMin = new Vector2(24f, -246f); // alto 230, 16 px desde arriba
+        barra.offsetMax = new Vector2(-24f, -16f);
+        AgregarImagenRedondeada(barra.gameObject, Hex(ColorPanel), 0.4f).raycastTarget = false;
+
+        // Izquierda: etapa y nombre de empresa (en el Paso 6 se vuelven dinámicos)
+        TextMeshProUGUI etapa = CrearTexto("TextoEtapa", barra, "Freelancer en un garaje", 28, Hex(ColorAcento));
+        etapa.alignment = TextAlignmentOptions.MidlineLeft;
+        etapa.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(etapa.rectTransform, 32f, 520f, 30f, 40f);
+
+        TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", barra, "Garaje Unipersonal", 44, Hex(ColorTexto));
+        empresa.alignment = TextAlignmentOptions.MidlineLeft;
+        empresa.overflowMode = TextOverflowModes.Ellipsis;
+        empresa.enableAutoSizing = true;
+        empresa.fontSizeMin = 30f;
+        empresa.fontSizeMax = 44f;
+        FilaArriba(empresa.rectTransform, 32f, 520f, 72f, 64f);
+
+        // Derecha: plata y $/seg
+        TextMeshProUGUI plata = CrearTexto("TextoPlata", barra, "$0", 80, Hex(ColorPlata));
+        plata.alignment = TextAlignmentOptions.MidlineRight;
+        plata.enableAutoSizing = true;
+        plata.fontSizeMin = 50f;
+        plata.fontSizeMax = 80f;
+        FilaArriba(plata.rectTransform, 500f, 32f, 18f, 96f);
+
+        TextMeshProUGUI porSegundo = CrearTexto("TextoPorSegundo", barra, "+$0/s", 32, Hex(ColorTextoSuave));
+        porSegundo.alignment = TextAlignmentOptions.MidlineRight;
+        FilaArriba(porSegundo.rectTransform, 500f, 32f, 112f, 44f);
+
+        // Abajo: barra de progreso de etapa (en el Paso 6 se llena)
+        RectTransform fondoBarra = CrearRect("BarraProgreso", barra);
+        fondoBarra.anchorMin = new Vector2(0f, 0f);
+        fondoBarra.anchorMax = new Vector2(1f, 0f);
+        fondoBarra.pivot = new Vector2(0.5f, 0f);
+        fondoBarra.offsetMin = new Vector2(32f, 26f);
+        fondoBarra.offsetMax = new Vector2(-32f, 48f); // 22 px de alto
+        AgregarImagenRedondeada(fondoBarra.gameObject, Hex(ColorFondo), 1f).raycastTarget = false;
+
+        RectTransform relleno = CrearRect("Relleno", fondoBarra);
+        relleno.anchorMin = Vector2.zero;
+        relleno.anchorMax = new Vector2(0f, 1f); // el ancho = progreso (0 a 1)
+        relleno.pivot = new Vector2(0f, 0.5f);
+        relleno.offsetMin = Vector2.zero;
+        relleno.offsetMax = Vector2.zero;
+        AgregarImagenRedondeada(relleno.gameObject, Hex(ColorAcento), 1f).raycastTarget = false;
+
+        UIBarraSuperior script = barra.gameObject.AddComponent<UIBarraSuperior>();
+        SerializedObject so = new SerializedObject(script);
+        so.FindProperty("textoPlata").objectReferenceValue = plata;
+        so.FindProperty("textoPorSegundo").objectReferenceValue = porSegundo;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void CrearEstadisticas(Transform padre)
+    {
+        RectTransform fila = CrearRect("Estadisticas", padre);
+        fila.anchorMin = new Vector2(0f, 0f);
+        fila.anchorMax = new Vector2(1f, 0f);
+        fila.pivot = new Vector2(0.5f, 0f);
+        fila.offsetMin = new Vector2(24f, 8f);
+        fila.offsetMax = new Vector2(-24f, 72f); // 64 px de alto
+
+        HorizontalLayoutGroup hl = fila.gameObject.AddComponent<HorizontalLayoutGroup>();
+        hl.spacing = 12f;
+        hl.childControlWidth = true;
+        hl.childControlHeight = true;
+        hl.childForceExpandWidth = true;
+        hl.childForceExpandHeight = true;
+
+        TextMeshProUGUI personal = CrearChipEstadistica("Personal", fila);
+        TextMeshProUGUI tratos = CrearChipEstadistica("Tratos", fila);
+        TextMeshProUGUI acciones = CrearChipEstadistica("Acciones", fila);
+
+        UIEstadisticas script = fila.gameObject.AddComponent<UIEstadisticas>();
+        SerializedObject so = new SerializedObject(script);
+        so.FindProperty("textoPersonal").objectReferenceValue = personal;
+        so.FindProperty("textoTratos").objectReferenceValue = tratos;
+        so.FindProperty("textoAcciones").objectReferenceValue = acciones;
+        so.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static TextMeshProUGUI CrearChipEstadistica(string nombre, Transform padre)
+    {
+        RectTransform chip = CrearRect("Chip" + nombre, padre);
+        AgregarImagenRedondeada(chip.gameObject, Hex(ColorPanel), 0.3f).raycastTarget = false;
+
+        TextMeshProUGUI t = CrearTexto("Texto", chip, nombre + " <b>0</b>", 30, Hex(ColorTexto));
+        t.fontStyle = FontStyles.Normal;
+        t.enableAutoSizing = true;
+        t.fontSizeMin = 20f;
+        t.fontSizeMax = 30f;
+        Estirar(t.rectTransform);
+        return t;
     }
 
     private static Button CrearBotonChico(string nombre, Transform padre, string texto)
