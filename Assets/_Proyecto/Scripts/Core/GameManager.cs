@@ -80,6 +80,9 @@ public class GameManager : MonoBehaviour
         }
         Instance = this;
 
+        // En Android Unity limita a 30 FPS por defecto: 60 se ve mucho más fluido
+        Application.targetFrameRate = 60;
+
         if (puestos == null) puestos = new PuestoData[0];
         if (departamentos == null) departamentos = new DepartamentoData[0];
         AjustarEstado();

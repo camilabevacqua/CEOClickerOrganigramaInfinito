@@ -1,6 +1,9 @@
 using System.IO;
+using System.Linq;
 using TMPro;
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -718,6 +721,121 @@ public static class ConfiguradorProyecto
         GuardarEscenaActiva();
         Selection.activeGameObject = feedback.gameObject;
         Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 11 listo. Cambiá los sonidos en el objeto Feedback.");
+    }
+
+    // =================================================================
+    // PASO 12: configuración de Android y build
+    // =================================================================
+    private const string IdentificadorAndroid = "com.ivan.ceoclicker";
+    private const string RutaIcono = RaizProyecto + "/Sprites/icono.png";
+    private const string RutaApk = "Builds/CEOClicker.apk";
+
+    [MenuItem("CEO Clicker/Paso 12 - Configurar Android", priority = 12)]
+    public static void ConfigurarPaso12()
+    {
+        if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+        {
+            EditorUtility.DisplayDialog("CEO Clicker",
+                "Falta el módulo de Android.\n\nAbrí Unity Hub > Installs > ⚙ de tu versión 6000.0.74f1 > Add modules > " +
+                "tildá \"Android Build Support\" (con OpenJDK y Android SDK & NDK Tools) > Install.\n\n" +
+                "Después reabrí el proyecto y volvé a correr este paso.",
+                "OK");
+            return;
+        }
+
+        // Identidad de la app
+        PlayerSettings.companyName = "Ivan";
+        PlayerSettings.productName = "CEO Clicker";
+        PlayerSettings.bundleVersion = "1.0";
+        PlayerSettings.Android.bundleVersionCode = 1;
+        PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, IdentificadorAndroid);
+
+        // Pantalla: vertical fija y dibujar también detrás del notch (SafeArea acomoda la interfaz)
+        PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+        PlayerSettings.Android.renderOutsideSafeArea = true;
+
+        // IL2CPP + ARM64 (lo que piden los celulares actuales y Google Play)
+        PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+        PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64 | AndroidArchitecture.ARMv7;
+
+        // Pantalla de carga con el fondo pastel
+        PlayerSettings.SplashScreen.backgroundColor = Tema.fondo;
+        PlayerSettings.SplashScreen.unityLogoStyle = PlayerSettings.SplashScreen.UnityLogoStyle.DarkOnLight;
+
+        // Ícono
+        TextureImporter importador = AssetImporter.GetAtPath(RutaIcono) as TextureImporter;
+        if (importador != null)
+        {
+            importador.textureType = TextureImporterType.Default;
+            importador.mipmapEnabled = false;
+            importador.textureCompression = TextureImporterCompression.Uncompressed;
+            importador.SaveAndReimport();
+        }
+
+        Texture2D icono = AssetDatabase.LoadAssetAtPath<Texture2D>(RutaIcono);
+        if (icono != null)
+        {
+            PlayerSettings.SetIcons(NamedBuildTarget.Unknown, new[] { icono }, IconKind.Any);
+        }
+        else
+        {
+            Debug.LogWarning("No encontré el ícono en " + RutaIcono + ". La app va a usar el ícono de Unity.");
+        }
+
+        // Escena principal como única escena del build
+        EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(RutaEscena, true) };
+        AssetDatabase.SaveAssets();
+
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 12 listo. Android configurado (" + IdentificadorAndroid + ").");
+
+        // Cambiar de plataforma (reimporta assets: puede tardar unos minutos)
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android &&
+            EditorUtility.DisplayDialog("CEO Clicker",
+                "¿Cambiar la plataforma a Android ahora?\nUnity va a reimportar los assets y puede tardar unos minutos.",
+                "Cambiar", "Más tarde"))
+        {
+            EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
+        }
+    }
+
+    [MenuItem("CEO Clicker/Paso 12b - Generar APK", priority = 13)]
+    public static void GenerarApk()
+    {
+        if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 12 y cambiá la plataforma a Android.", "OK");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+
+        string[] escenas = EditorBuildSettings.scenes.Where(e => e.enabled).Select(e => e.path).ToArray();
+        if (escenas.Length == 0) escenas = new[] { RutaEscena };
+
+        Directory.CreateDirectory(Path.GetDirectoryName(RutaApk));
+        EditorUserBuildSettings.buildAppBundle = false; // .apk para instalar directo (no .aab)
+
+        BuildPlayerOptions opciones = new BuildPlayerOptions
+        {
+            scenes = escenas,
+            locationPathName = RutaApk,
+            target = BuildTarget.Android,
+            options = BuildOptions.None
+        };
+
+        BuildReport reporte = BuildPipeline.BuildPlayer(opciones);
+        BuildSummary resumen = reporte.summary;
+
+        if (resumen.result == BuildResult.Succeeded)
+        {
+            float megas = resumen.totalSize / (1024f * 1024f);
+            Debug.Log($"<color=#D65A92><b>CEO Clicker:</b></color> APK lista: {Path.GetFullPath(RutaApk)} ({megas:0.0} MB)");
+            EditorUtility.RevealInFinder(RutaApk);
+        }
+        else
+        {
+            Debug.LogError("El build falló (" + resumen.result + "). Revisá los errores de arriba en la consola.");
+        }
     }
 
     private static void AsignarSonidoSiFalta(SerializedObject so, string propiedad, string archivo)
