@@ -14,6 +14,8 @@ public class GameManager : MonoBehaviour
     private const float IntervaloAutoguardado = 5f;
     private const double MaxSegundosOffline = 8 * 3600;   // 8 horas
     private const double MinSegundosParaAviso = 10;       // ausencias cortas no muestran cartel
+    public const double MinimoParaBolsa = 1e6;            // facturación de la partida para salir a la bolsa
+    private const double DivisorAcciones = 100000;
 
     public static GameManager Instance { get; private set; }
 
@@ -51,6 +53,12 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Índice de la etapa actual (0 = Freelancer en un garaje).</summary>
     public int IndiceEtapa { get; private set; }
+
+    /// <summary>Se dispara al salir a la bolsa, con las acciones ganadas.</summary>
+    public event Action<int> OnSalidaABolsa;
+
+    /// <summary>Se dispara al borrar la partida.</summary>
+    public event Action OnPartidaBorrada;
 
     /// <summary>Ganancia offline al volver (monto, segundos ausente).</summary>
     public event Action<double, double> OnGananciaOffline;
@@ -223,6 +231,56 @@ public class GameManager : MonoBehaviour
         OfflinePendienteSegundos = segundos;
         HayAvisoOfflinePendiente = true;
         OnGananciaOffline?.Invoke(ganancia, segundos);
+    }
+
+    // ------------------------------------------------------------------
+    // Salir a la bolsa (prestigio) y borrar partida
+    // ------------------------------------------------------------------
+
+    public bool PuedeSalirABolsa => Estado.facturadoPartida >= MinimoParaBolsa;
+
+    /// <summary>Acciones que ganás = floor(sqrt(facturadoEnLaPartida / 100000)).</summary>
+    public int AccionesAGanar => (int)Math.Floor(Math.Sqrt(Estado.facturadoPartida / DivisorAcciones));
+
+    /// <summary>
+    /// Reinicia plata, puestos y departamentos.
+    /// Conserva acciones (sumando las nuevas), facturación histórica y clics totales.
+    /// </summary>
+    public bool SalirABolsa()
+    {
+        if (!PuedeSalirABolsa) return false;
+
+        int ganadas = AccionesAGanar;
+
+        EstadoJuego anterior = Estado;
+        Estado = new EstadoJuego
+        {
+            acciones = anterior.acciones + ganadas,
+            facturadoHistorico = anterior.facturadoHistorico,
+            clicsTotales = anterior.clicsTotales
+        };
+        AjustarEstado();
+        ActualizarEtapa(false);
+        Guardar();
+
+        OnSalidaABolsa?.Invoke(ganadas);
+        AvisarCambio();
+        return true;
+    }
+
+    /// <summary>Borra todo (incluidas acciones e historial) y el archivo de guardado.</summary>
+    public void BorrarPartida()
+    {
+        SistemaGuardado.Borrar();
+
+        Estado = new EstadoJuego();
+        AjustarEstado();
+        ActualizarEtapa(false);
+        HayAvisoOfflinePendiente = false;
+        proximoGuardado = Time.unscaledTime + IntervaloAutoguardado;
+
+        OnPartidaBorrada?.Invoke();
+        AvisarCambio();
     }
 
     /// <summary>La UI lo llama al cerrar el cartel de ganancias offline.</summary>

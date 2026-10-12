@@ -562,6 +562,123 @@ public static class ConfiguradorProyecto
         Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 9 listo. La partida se guarda en " + Application.persistentDataPath);
     }
 
+    // =================================================================
+    // PASO 10: salir a la bolsa y borrar partida (pestaña Empresa)
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 10 - Salir a la bolsa y borrar partida", priority = 10)]
+    public static void ConfigurarPaso10()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        Transform panelEmpresa = BuscarDescendiente(area.transform, "PanelEmpresa");
+        Transform contenido = panelEmpresa != null ? BuscarDescendiente(panelEmpresa, "Contenido") : null;
+        if (contenido == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 6 (falta la lista de la pestaña Empresa).", "OK");
+            return;
+        }
+
+        DestruirDescendiente(contenido, "TarjetaBolsa");
+        DestruirDescendiente(contenido, "TarjetaBorrar");
+
+        // --- Tarjeta "Salir a la bolsa" (arriba de todo) ---
+        RectTransform bolsa = CrearTarjeta("TarjetaBolsa", contenido, 400f);
+        bolsa.SetSiblingIndex(0);
+
+        TextMeshProUGUI tituloBolsa = CrearTexto("Titulo", bolsa, "Salir a la bolsa", 40, Tema.texto);
+        tituloBolsa.alignment = TextAlignmentOptions.MidlineLeft;
+        FilaArriba(tituloBolsa.rectTransform, 32f, 32f, 24f, 56f);
+
+        TextMeshProUGUI detalleBolsa = CrearTexto("TextoDetalle", bolsa, "Facturá $1.00M en esta partida para salir a la bolsa.", 26, Tema.textoSuave);
+        detalleBolsa.fontStyle = FontStyles.Normal;
+        detalleBolsa.alignment = TextAlignmentOptions.TopLeft;
+        detalleBolsa.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(detalleBolsa.rectTransform, 32f, 32f, 86f, 110f);
+
+        TextMeshProUGUI acciones = CrearTexto("TextoAcciones", bolsa, "Tenés 0 acciones", 28, Tema.acento);
+        acciones.alignment = TextAlignmentOptions.MidlineLeft;
+        acciones.enableAutoSizing = true;
+        acciones.fontSizeMin = 18f;
+        acciones.fontSizeMax = 28f;
+        FilaArriba(acciones.rectTransform, 32f, 32f, 200f, 50f);
+
+        BotonDobleToque botonBolsa = CrearBotonDobleToque("BotonBolsa", bolsa, "Salir a la bolsa", Tema.botonMejorar, Tema.aviso, 100f);
+
+        // --- Tarjeta "Borrar partida" (abajo de todo) ---
+        RectTransform borrar = CrearTarjeta("TarjetaBorrar", contenido, 270f);
+        borrar.SetAsLastSibling();
+
+        TextMeshProUGUI tituloBorrar = CrearTexto("Titulo", borrar, "Borrar partida", 36, Tema.texto);
+        tituloBorrar.alignment = TextAlignmentOptions.MidlineLeft;
+        FilaArriba(tituloBorrar.rectTransform, 32f, 32f, 22f, 50f);
+
+        TextMeshProUGUI detalleBorrar = CrearTexto("TextoDetalle", borrar,
+            "Empieza todo de cero, incluidas las acciones. No se puede deshacer.", 24, Tema.textoSuave);
+        detalleBorrar.fontStyle = FontStyles.Normal;
+        detalleBorrar.alignment = TextAlignmentOptions.TopLeft;
+        FilaArriba(detalleBorrar.rectTransform, 32f, 32f, 76f, 64f);
+
+        BotonDobleToque botonBorrar = CrearBotonDobleToque("BotonBorrar", borrar, "Borrar partida", Tema.aviso, Tema.texto, 90f);
+
+        // --- Script del panel ---
+        UIPanelEmpresa viejo = panelEmpresa.GetComponent<UIPanelEmpresa>();
+        if (viejo != null) Object.DestroyImmediate(viejo);
+        UIPanelEmpresa script = panelEmpresa.gameObject.AddComponent<UIPanelEmpresa>();
+
+        SerializedObject so = new SerializedObject(script);
+        so.FindProperty("textoBolsaDetalle").objectReferenceValue = detalleBolsa;
+        so.FindProperty("textoAcciones").objectReferenceValue = acciones;
+        so.FindProperty("botonBolsa").objectReferenceValue = botonBolsa;
+        so.FindProperty("botonBorrar").objectReferenceValue = botonBorrar;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 10 listo. Mirá la pestaña Empresa.");
+    }
+
+    private static RectTransform CrearTarjeta(string nombre, Transform padre, float alto)
+    {
+        RectTransform tarjeta = CrearRect(nombre, padre);
+        AgregarImagenRedondeada(tarjeta.gameObject, Tema.tarjeta, 0.4f).raycastTarget = false;
+        LayoutElement le = tarjeta.gameObject.AddComponent<LayoutElement>();
+        le.minHeight = alto;
+        le.preferredHeight = alto;
+        return tarjeta;
+    }
+
+    /// <summary>Botón a lo ancho, pegado abajo de la tarjeta, con confirmación por doble toque.</summary>
+    private static BotonDobleToque CrearBotonDobleToque(string nombre, Transform padre, string texto, Color color,
+        Color colorConfirmar, float alto)
+    {
+        RectTransform rt = CrearRect(nombre, padre);
+        rt.anchorMin = new Vector2(0f, 0f);
+        rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(0.5f, 0f);
+        rt.offsetMin = new Vector2(32f, 26f);
+        rt.offsetMax = new Vector2(-32f, 26f + alto);
+
+        Image img = AgregarImagenRedondeada(rt.gameObject, color, 0.3f);
+        Button boton = rt.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, img);
+
+        TextMeshProUGUI t = CrearTexto("Texto", rt, texto, 34, Tema.textoBoton);
+        t.enableAutoSizing = true;
+        t.fontSizeMin = 22f;
+        t.fontSizeMax = 34f;
+        Estirar(t.rectTransform);
+
+        BotonDobleToque doble = rt.gameObject.AddComponent<BotonDobleToque>();
+        SerializedObject so = new SerializedObject(doble);
+        so.FindProperty("texto").objectReferenceValue = t;
+        so.FindProperty("fondo").objectReferenceValue = img;
+        so.FindProperty("colorConfirmar").colorValue = colorConfirmar;
+        so.ApplyModifiedPropertiesWithoutUndo();
+        return doble;
+    }
+
     [MenuItem("CEO Clicker/Herramientas/Abrir carpeta de guardado", priority = 100)]
     public static void AbrirCarpetaGuardado()
     {
@@ -633,6 +750,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso7();
         ConfigurarPaso8();
         ConfigurarPaso9();
+        ConfigurarPaso10();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;
