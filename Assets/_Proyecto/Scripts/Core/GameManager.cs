@@ -17,8 +17,12 @@ public class GameManager : MonoBehaviour
     [Header("Datos (en orden: Empleado → Vicepresidente)")]
     [SerializeField] private PuestoData[] puestos = new PuestoData[0];
 
+    [Header("Departamentos (RRHH, Marketing, Finanzas)")]
+    [SerializeField] private DepartamentoData[] departamentos = new DepartamentoData[0];
+
     public EstadoJuego Estado { get; private set; } = new EstadoJuego();
     public IReadOnlyList<PuestoData> Puestos => puestos;
+    public IReadOnlyList<DepartamentoData> Departamentos => departamentos;
 
     /// <summary>Se dispara cuando cambia cualquier dato (plata, cantidades, niveles...).</summary>
     public event Action OnEstadoCambio;
@@ -28,6 +32,9 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Se dispara al contratar: qué puesto y cuántas personas.</summary>
     public event Action<PuestoData, int> OnContrato;
+
+    /// <summary>Se dispara al subir de nivel un departamento.</summary>
+    public event Action<DepartamentoData> OnDepartamentoMejorado;
 
     private void Awake()
     {
@@ -39,6 +46,7 @@ public class GameManager : MonoBehaviour
         Instance = this;
 
         if (puestos == null) puestos = new PuestoData[0];
+        if (departamentos == null) departamentos = new DepartamentoData[0];
         AjustarEstado();
     }
 
@@ -57,7 +65,7 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    /// <summary>Se asegura de que el estado tenga un lugar por cada puesto.</summary>
+    /// <summary>Se asegura de que el estado tenga un lugar por cada puesto y cada departamento.</summary>
     private void AjustarEstado()
     {
         if (Estado.cantidadesPuestos == null)
@@ -67,6 +75,15 @@ public class GameManager : MonoBehaviour
         else if (Estado.cantidadesPuestos.Length != puestos.Length)
         {
             Array.Resize(ref Estado.cantidadesPuestos, puestos.Length);
+        }
+
+        if (Estado.nivelesDepartamentos == null)
+        {
+            Estado.nivelesDepartamentos = new int[departamentos.Length];
+        }
+        else if (Estado.nivelesDepartamentos.Length != departamentos.Length)
+        {
+            Array.Resize(ref Estado.nivelesDepartamentos, departamentos.Length);
         }
     }
 
@@ -78,19 +95,60 @@ public class GameManager : MonoBehaviour
     public double MultAcciones => 1.0 + 0.1 * Estado.acciones;
 
     /// <summary>
-    /// multProducción. Por ahora = multAcciones.
-    /// En el Paso 5: (1 + 0.25×RRHH) × (1 + 0.1×Marketing) × multAcciones.
+    /// multProducción = (1 + 0.25×RRHH) × (1 + 0.1×Marketing) × multAcciones
+    /// (cada departamento aporta su bonusProduccionPorNivel).
     /// </summary>
-    public double MultProduccion => MultAcciones;
+    public double MultProduccion
+    {
+        get
+        {
+            double mult = MultAcciones;
+            for (int i = 0; i < departamentos.Length; i++)
+            {
+                DepartamentoData d = departamentos[i];
+                if (d == null) continue;
+                mult *= 1.0 + d.bonusProduccionPorNivel * Estado.nivelesDepartamentos[i];
+            }
+            return mult;
+        }
+    }
 
-    /// <summary>Descuento de Finanzas sobre el costo de contratar. Paso 5: 0.95^nivel.</summary>
-    public double MultFinanzas => 1.0;
+    /// <summary>Descuento sobre el costo de contratar: 0.95^nivelFinanzas.</summary>
+    public double MultFinanzas
+    {
+        get
+        {
+            double mult = 1.0;
+            for (int i = 0; i < departamentos.Length; i++)
+            {
+                DepartamentoData d = departamentos[i];
+                if (d == null || d.descuentoContratacionPorNivel <= 0) continue;
+                mult *= Math.Pow(d.descuentoContratacionPorNivel, Estado.nivelesDepartamentos[i]);
+            }
+            return mult;
+        }
+    }
 
     /// <summary>
-    /// Valor por clic. Por ahora = 1 × multAcciones.
-    /// En el Paso 5 se suma Marketing: (1 + nivel) × multAcciones + ingresoPorSegundo × 0.01 × nivel.
+    /// Valor por clic = (1 + nivelMarketing) × multAcciones + ingresoPorSegundo × 0.01 × nivelMarketing
     /// </summary>
-    public double ValorPorClic => 1.0 * MultAcciones;
+    public double ValorPorClic
+    {
+        get
+        {
+            double clicBase = 1.0;
+            double porcentajeIngreso = 0.0;
+            for (int i = 0; i < departamentos.Length; i++)
+            {
+                DepartamentoData d = departamentos[i];
+                if (d == null) continue;
+                int nivel = Estado.nivelesDepartamentos[i];
+                clicBase += d.bonusClicPorNivel * nivel;
+                porcentajeIngreso += d.porcentajeIngresoAlClicPorNivel * nivel;
+            }
+            return clicBase * MultAcciones + IngresoPorSegundo * porcentajeIngreso;
+        }
+    }
 
     /// <summary>Plata por segundo que genera UNA persona de ese puesto, con multiplicadores.</summary>
     public double ProduccionUnitaria(PuestoData p)
@@ -220,8 +278,49 @@ public class GameManager : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    // Departamentos: consultas
+    // ------------------------------------------------------------------
+
+    public int IndiceDepartamento(DepartamentoData d) => Array.IndexOf(departamentos, d);
+
+    public int Nivel(DepartamentoData d)
+    {
+        int i = IndiceDepartamento(d);
+        return i < 0 ? 0 : Estado.nivelesDepartamentos[i];
+    }
+
+    public bool EstaAlMaximo(DepartamentoData d)
+    {
+        return d != null && d.nivelMaximo > 0 && Nivel(d) >= d.nivelMaximo;
+    }
+
+    /// <summary>Costo del próximo nivel: costoBase × multiplicador^nivel.</summary>
+    public double CostoDepartamento(DepartamentoData d)
+    {
+        if (d == null) return 0;
+        return d.costoBase * Math.Pow(d.multiplicadorCosto, Nivel(d));
+    }
+
+    // ------------------------------------------------------------------
     // Acciones del jugador
     // ------------------------------------------------------------------
+
+    /// <summary>Sube un nivel el departamento. Devuelve false si está al máximo o no alcanza la plata.</summary>
+    public bool MejorarDepartamento(DepartamentoData d)
+    {
+        int i = IndiceDepartamento(d);
+        if (i < 0 || EstaAlMaximo(d)) return false;
+
+        double costo = CostoDepartamento(d);
+        if (costo > Estado.plata) return false;
+
+        Estado.plata -= costo;
+        Estado.nivelesDepartamentos[i]++;
+
+        OnDepartamentoMejorado?.Invoke(d);
+        AvisarCambio();
+        return true;
+    }
 
     /// <summary>Toque en el botón Facturar. Devuelve lo que se ganó.</summary>
     public double Facturar()

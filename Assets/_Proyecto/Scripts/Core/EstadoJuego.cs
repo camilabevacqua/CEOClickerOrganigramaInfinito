@@ -24,4 +24,7 @@ public class EstadoJuego
 
     // Cantidad contratada de cada puesto, en el mismo orden que la lista de puestos del GameManager
     public int[] cantidadesPuestos = new int[0];
+
+    // Nivel de cada departamento, en el mismo orden que la lista de departamentos del GameManager
+    public int[] nivelesDepartamentos = new int[0];
 }

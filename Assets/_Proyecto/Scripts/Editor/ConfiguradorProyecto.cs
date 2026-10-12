@@ -19,6 +19,8 @@ public static class ConfiguradorProyecto
     private const string RutaEscena = RaizProyecto + "/Escenas/Principal.unity";
     private const string CarpetaPuestos = RaizProyecto + "/Datos/Puestos";
     private const string RutaPrefabPuesto = RaizProyecto + "/Prefabs/ItemPuesto.prefab";
+    private const string CarpetaDepartamentos = RaizProyecto + "/Datos/Departamentos";
+    private const string RutaPrefabDepartamento = RaizProyecto + "/Prefabs/ItemDepartamento.prefab";
 
     private static readonly string[] Carpetas =
     {
@@ -219,6 +221,106 @@ public static class ConfiguradorProyecto
         AssetDatabase.SaveAssets();
 
         Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 4 listo. Contratá Empleados y mirá cómo sube la plata sola.");
+    }
+
+    // =================================================================
+    // PASO 5: departamentos y pestañas
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 5 - Departamentos y pestañas", priority = 5)]
+    public static void ConfigurarPaso5()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        Transform panelPestanas = BuscarDescendiente(area.transform, "PanelPestanas");
+        Transform panelPersonal = panelPestanas != null ? BuscarDescendiente(panelPestanas, "PanelPersonal") : null;
+        if (gm == null || panelPersonal == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré los Pasos 2, 3 y 4 (falta el GameManager o el panel de Personal).", "OK");
+            return;
+        }
+
+        CrearCarpetas();
+
+        // 1) Datos de los departamentos
+        DepartamentoData[] departamentos = CrearDepartamentos();
+
+        SerializedObject soGm = new SerializedObject(gm);
+        SerializedProperty lista = soGm.FindProperty("departamentos");
+        lista.arraySize = departamentos.Length;
+        for (int i = 0; i < departamentos.Length; i++)
+        {
+            lista.GetArrayElementAtIndex(i).objectReferenceValue = departamentos[i];
+        }
+        soGm.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2) Pestañas
+        DestruirDescendiente(panelPestanas, "BarraPestanas");
+        DestruirDescendiente(panelPestanas, "PanelDepartamentos");
+        DestruirDescendiente(panelPestanas, "PanelEmpresa");
+
+        // Personal baja para dejar lugar a la barra de pestañas
+        Ubicar((RectTransform)panelPersonal, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -100f));
+
+        RectTransform barra = CrearRect("BarraPestanas", panelPestanas);
+        Ubicar(barra, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(16f, -100f), new Vector2(-16f, -16f));
+        HorizontalLayoutGroup hl = barra.gameObject.AddComponent<HorizontalLayoutGroup>();
+        hl.spacing = 10f;
+        hl.childControlWidth = true;
+        hl.childControlHeight = true;
+        hl.childForceExpandWidth = true;
+        hl.childForceExpandHeight = true;
+
+        Button tabPersonal = CrearBotonChico("TabPersonal", barra, "Personal");
+        Button tabDepartamentos = CrearBotonChico("TabDepartamentos", barra, "Departamentos");
+        Button tabEmpresa = CrearBotonChico("TabEmpresa", barra, "Empresa");
+
+        // Panel Departamentos
+        RectTransform panelDeptos = CrearRect("PanelDepartamentos", panelPestanas);
+        Ubicar(panelDeptos, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -100f));
+        CrearEncabezado(panelDeptos, "Departamentos");
+        RectTransform contenidoDeptos = CrearListaConScroll(panelDeptos, 110f);
+
+        UIDepartamentoItem prefabDepto = CrearPrefabItemDepartamento();
+        UIListaDepartamentos listaDeptos = panelDeptos.gameObject.AddComponent<UIListaDepartamentos>();
+        SerializedObject soLista = new SerializedObject(listaDeptos);
+        soLista.FindProperty("prefabItem").objectReferenceValue = prefabDepto;
+        soLista.FindProperty("contenedor").objectReferenceValue = contenidoDeptos;
+        soLista.ApplyModifiedPropertiesWithoutUndo();
+
+        // Panel Empresa (provisorio hasta los Pasos 6 y 10)
+        RectTransform panelEmpresa = CrearRect("PanelEmpresa", panelPestanas);
+        Ubicar(panelEmpresa, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -100f));
+        TextMeshProUGUI provisorio = CrearTexto("TextoProvisorio", panelEmpresa,
+            "Etapas, salir a la bolsa y borrar partida\n(Pasos 6 y 10)", 36, Hex(ColorTextoSuave));
+        provisorio.fontStyle = FontStyles.Normal;
+        Estirar(provisorio.rectTransform);
+
+        // Script de pestañas
+        UIPestanas viejo = panelPestanas.GetComponent<UIPestanas>();
+        if (viejo != null) Object.DestroyImmediate(viejo);
+        UIPestanas pestanas = panelPestanas.gameObject.AddComponent<UIPestanas>();
+
+        SerializedObject soPestanas = new SerializedObject(pestanas);
+        SerializedProperty arreglo = soPestanas.FindProperty("pestanas");
+        Button[] botones = { tabPersonal, tabDepartamentos, tabEmpresa };
+        GameObject[] paneles = { panelPersonal.gameObject, panelDeptos.gameObject, panelEmpresa.gameObject };
+        arreglo.arraySize = botones.Length;
+        for (int i = 0; i < botones.Length; i++)
+        {
+            SerializedProperty elemento = arreglo.GetArrayElementAtIndex(i);
+            elemento.FindPropertyRelative("boton").objectReferenceValue = botones[i];
+            elemento.FindPropertyRelative("panel").objectReferenceValue = paneles[i];
+        }
+        soPestanas.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+
+        Debug.Log("<color=#0A7458><b>CEO Clicker:</b></color> Paso 5 listo. Departamentos en " + CarpetaDepartamentos + ".");
     }
 
     // =================================================================
@@ -701,6 +803,199 @@ public static class ConfiguradorProyecto
         t.fontSizeMax = 30f;
         Estirar(t.rectTransform);
         return t;
+    }
+
+    // =================================================================
+    // Partes del Paso 5
+    // =================================================================
+    private static DepartamentoData[] CrearDepartamentos()
+    {
+        DepartamentoData rrhh = CrearOObtenerDepartamento(1, "rrhh", "Recursos Humanos", "RRHH", "#2C6A9A",
+            "Capacitaciones y after office: todo el personal produce +25% por nivel.",
+            400, 2.4, 0, 0.25, 0, 0, 1);
+
+        DepartamentoData marketing = CrearOObtenerDepartamento(2, "marketing", "Marketing", "MKT", "#C2410C",
+            "Publicidad en redes: el clic vale más, suma 1% de tu $/s por nivel y la producción sube +10%.",
+            60, 2.2, 0, 0.1, 1, 0.01, 1);
+
+        DepartamentoData finanzas = CrearOObtenerDepartamento(3, "finanzas", "Finanzas", "FIN", "#6D3FC4",
+            "Contadores creativos: contratar sale 5% más barato por nivel.",
+            2500, 2.8, 12, 0, 0, 0, 0.95);
+
+        DepartamentoData[] todos = { rrhh, marketing, finanzas };
+        foreach (DepartamentoData d in todos) EditorUtility.SetDirty(d);
+        AssetDatabase.SaveAssets();
+        return todos;
+    }
+
+    private static DepartamentoData CrearOObtenerDepartamento(int orden, string id, string nombre, string sigla,
+        string colorHex, string descripcion, double costo, double multiplicador, int nivelMaximo,
+        double bonusProduccion, double bonusClic, double porcentajeIngresoAlClic, double descuento)
+    {
+        string ruta = $"{CarpetaDepartamentos}/{orden}_{sigla}.asset";
+        DepartamentoData existente = AssetDatabase.LoadAssetAtPath<DepartamentoData>(ruta);
+        if (existente != null) return existente; // no pisa lo que balanceaste a mano
+
+        DepartamentoData d = ScriptableObject.CreateInstance<DepartamentoData>();
+        d.id = id;
+        d.nombre = nombre;
+        d.sigla = sigla;
+        d.color = Hex(colorHex);
+        d.descripcion = descripcion;
+        d.costoBase = costo;
+        d.multiplicadorCosto = multiplicador;
+        d.nivelMaximo = nivelMaximo;
+        d.bonusProduccionPorNivel = bonusProduccion;
+        d.bonusClicPorNivel = bonusClic;
+        d.porcentajeIngresoAlClicPorNivel = porcentajeIngresoAlClic;
+        d.descuentoContratacionPorNivel = descuento;
+
+        AssetDatabase.CreateAsset(d, ruta);
+        return d;
+    }
+
+    /// <summary>Encabezado de 110 px con un título a la izquierda.</summary>
+    private static RectTransform CrearEncabezado(Transform padre, string texto)
+    {
+        RectTransform encabezado = CrearRect("Encabezado", padre);
+        Ubicar(encabezado, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -110f), new Vector2(0f, 0f));
+
+        TextMeshProUGUI titulo = CrearTexto("Titulo", encabezado, texto, 46, Hex(ColorTexto));
+        titulo.alignment = TextAlignmentOptions.MidlineLeft;
+        Ubicar(titulo.rectTransform, Vector2.zero, Vector2.one, new Vector2(32f, 0f), new Vector2(-32f, 0f));
+        return encabezado;
+    }
+
+    /// <summary>Lista vertical con scroll que ocupa todo el padre menos "margenArriba". Devuelve el contenedor de filas.</summary>
+    private static RectTransform CrearListaConScroll(Transform padre, float margenArriba)
+    {
+        RectTransform scroll = CrearRect("Scroll", padre);
+        Ubicar(scroll, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(0f, -margenArriba));
+        Image zonaToque = scroll.gameObject.AddComponent<Image>();
+        zonaToque.color = new Color(1f, 1f, 1f, 0f); // invisible, pero recibe el arrastre
+
+        RectTransform viewport = CrearHijoEstirado("Viewport", scroll);
+        viewport.gameObject.AddComponent<RectMask2D>();
+
+        RectTransform contenido = CrearRect("Contenido", viewport);
+        contenido.anchorMin = new Vector2(0f, 1f);
+        contenido.anchorMax = new Vector2(1f, 1f);
+        contenido.pivot = new Vector2(0.5f, 1f);
+        contenido.sizeDelta = Vector2.zero;
+        contenido.anchoredPosition = Vector2.zero;
+
+        VerticalLayoutGroup vl = contenido.gameObject.AddComponent<VerticalLayoutGroup>();
+        vl.padding = new RectOffset(16, 16, 4, 24);
+        vl.spacing = 14f;
+        vl.childAlignment = TextAnchor.UpperCenter;
+        vl.childControlWidth = true;
+        vl.childControlHeight = true;
+        vl.childForceExpandWidth = true;
+        vl.childForceExpandHeight = false;
+
+        ContentSizeFitter fitter = contenido.gameObject.AddComponent<ContentSizeFitter>();
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ScrollRect sr = scroll.gameObject.AddComponent<ScrollRect>();
+        sr.horizontal = false;
+        sr.vertical = true;
+        sr.movementType = ScrollRect.MovementType.Elastic;
+        sr.scrollSensitivity = 40f;
+        sr.viewport = viewport;
+        sr.content = contenido;
+
+        return contenido;
+    }
+
+    /// <summary>Crea (o recrea) el prefab de la fila de un departamento.</summary>
+    private static UIDepartamentoItem CrearPrefabItemDepartamento()
+    {
+        const float alto = 220f;
+        const float izquierdaTextos = 188f;
+        const float derechaTextos = 328f;
+
+        GameObject raiz = new GameObject("ItemDepartamento", typeof(RectTransform));
+        raiz.layer = LayerMask.NameToLayer("UI");
+        RectTransform rtRaiz = raiz.GetComponent<RectTransform>();
+        rtRaiz.sizeDelta = new Vector2(1000f, alto);
+
+        AgregarImagenRedondeada(raiz, Hex(ColorTarjeta), 0.4f).raycastTarget = false;
+        LayoutElement le = raiz.AddComponent<LayoutElement>();
+        le.minHeight = alto;
+        le.preferredHeight = alto;
+
+        // Insignia con la sigla
+        RectTransform rtInsignia = CrearRect("Insignia", rtRaiz);
+        rtInsignia.anchorMin = rtInsignia.anchorMax = new Vector2(0f, 0.5f);
+        rtInsignia.pivot = new Vector2(0f, 0.5f);
+        rtInsignia.sizeDelta = new Vector2(140f, 140f);
+        rtInsignia.anchoredPosition = new Vector2(24f, 0f);
+        Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Color.gray, 0.3f);
+        insignia.raycastTarget = false;
+
+        TextMeshProUGUI sigla = CrearTexto("Sigla", rtInsignia, "RRHH", 44, Color.white);
+        sigla.enableAutoSizing = true;
+        sigla.fontSizeMin = 24f;
+        sigla.fontSizeMax = 44f;
+        Estirar(sigla.rectTransform);
+        sigla.margin = new Vector4(8f, 0f, 8f, 0f);
+
+        // Textos del medio
+        TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Departamento", 40, Hex(ColorTexto));
+        nombre.alignment = TextAlignmentOptions.MidlineLeft;
+        nombre.overflowMode = TextOverflowModes.Ellipsis;
+        nombre.enableAutoSizing = true;
+        nombre.fontSizeMin = 30f;
+        nombre.fontSizeMax = 40f;
+        FilaArriba(nombre.rectTransform, izquierdaTextos, derechaTextos + 150f, 22f, 54f);
+
+        TextMeshProUGUI nivel = CrearTexto("TextoNivel", rtRaiz, "Nv. 0", 34, Hex(ColorTexto));
+        nivel.alignment = TextAlignmentOptions.MidlineRight;
+        FilaArriba(nivel.rectTransform, izquierdaTextos, derechaTextos, 22f, 54f);
+
+        TextMeshProUGUI detalle = CrearTexto("TextoDetalle", rtRaiz, "Ahora: ×1", 26, Hex(ColorPlata));
+        detalle.alignment = TextAlignmentOptions.MidlineLeft;
+        detalle.overflowMode = TextOverflowModes.Ellipsis;
+        detalle.enableAutoSizing = true;
+        detalle.fontSizeMin = 18f;
+        detalle.fontSizeMax = 26f;
+        FilaArriba(detalle.rectTransform, izquierdaTextos, derechaTextos, 80f, 40f);
+
+        TextMeshProUGUI descripcion = CrearTexto("TextoDescripcion", rtRaiz, "Descripción", 24, Hex(ColorTextoSuave));
+        descripcion.fontStyle = FontStyles.Normal;
+        descripcion.alignment = TextAlignmentOptions.TopLeft;
+        descripcion.overflowMode = TextOverflowModes.Ellipsis;
+        FilaArriba(descripcion.rectTransform, izquierdaTextos, derechaTextos, 124f, 80f);
+
+        // Botón Mejorar
+        RectTransform rtBoton = CrearRect("BotonComprar", rtRaiz);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(1f, 0.5f);
+        rtBoton.pivot = new Vector2(1f, 0.5f);
+        rtBoton.sizeDelta = new Vector2(280f, 150f);
+        rtBoton.anchoredPosition = new Vector2(-24f, 0f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Hex(ColorAcento), 0.3f);
+        Button boton = rtBoton.gameObject.AddComponent<Button>();
+        ConfigurarBoton(boton, imgBoton);
+
+        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Mejorar\n$60", 30, Color.white);
+        Estirar(textoBoton.rectTransform);
+
+        // Script con referencias
+        UIDepartamentoItem item = raiz.AddComponent<UIDepartamentoItem>();
+        SerializedObject so = new SerializedObject(item);
+        so.FindProperty("insignia").objectReferenceValue = insignia;
+        so.FindProperty("textoSigla").objectReferenceValue = sigla;
+        so.FindProperty("textoNombre").objectReferenceValue = nombre;
+        so.FindProperty("textoNivel").objectReferenceValue = nivel;
+        so.FindProperty("textoDetalle").objectReferenceValue = detalle;
+        so.FindProperty("textoDescripcion").objectReferenceValue = descripcion;
+        so.FindProperty("botonComprar").objectReferenceValue = boton;
+        so.FindProperty("textoBoton").objectReferenceValue = textoBoton;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabDepartamento);
+        Object.DestroyImmediate(raiz);
+        return prefab.GetComponent<UIDepartamentoItem>();
     }
 
     private static Button CrearBotonChico(string nombre, Transform padre, string texto)

@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 138c7ee1cd798794db66b2c2d8c595a7, type: 3}
+  m_Name: 2_MKT
+  m_EditorClassIdentifier: 
+  id: marketing
+  nombre: Marketing
+  sigla: MKT
+  color: {r: 0.7607843, g: 0.25490198, b: 0.047058824, a: 1}
+  descripcion: "Publicidad en redes: el clic vale m\xE1s, suma 1% de tu $/s por nivel
+    y la producci\xF3n sube +10%."
+  costoBase: 60
+  multiplicadorCosto: 2.2
+  nivelMaximo: 0
+  bonusProduccionPorNivel: 0.1
+  bonusClicPorNivel: 1
+  porcentajeIngresoAlClicPorNivel: 0.01
+  descuentoContratacionPorNivel: 1

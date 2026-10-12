@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 138c7ee1cd798794db66b2c2d8c595a7, type: 3}
+  m_Name: 3_FIN
+  m_EditorClassIdentifier: 
+  id: finanzas
+  nombre: Finanzas
+  sigla: FIN
+  color: {r: 0.42745098, g: 0.24705882, b: 0.76862746, a: 1}
+  descripcion: "Contadores creativos: contratar sale 5% m\xE1s barato por nivel."
+  costoBase: 2500
+  multiplicadorCosto: 2.8
+  nivelMaximo: 12
+  bonusProduccionPorNivel: 0
+  bonusClicPorNivel: 0
+  porcentajeIngresoAlClicPorNivel: 0
+  descuentoContratacionPorNivel: 0.95
