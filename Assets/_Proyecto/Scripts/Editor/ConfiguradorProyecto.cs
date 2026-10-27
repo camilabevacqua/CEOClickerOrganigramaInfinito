@@ -838,6 +838,206 @@ public static class ConfiguradorProyecto
         }
     }
 
+    // =================================================================
+    // PASO 13: rubro y nombre de la empresa al empezar
+    // =================================================================
+    private const string RutaRubros = RaizProyecto + "/Datos/Rubros.asset";
+
+    [MenuItem("CEO Clicker/Paso 13 - Rubro y nombre de la empresa", priority = 14)]
+    public static void ConfigurarPaso13()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        if (gm == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 2 (falta el GameManager).", "OK");
+            return;
+        }
+
+        CrearCarpetas();
+
+        // 1) Datos de los rubros
+        RubrosConfig rubros = CrearOObtenerRubros();
+        SerializedObject soGm = new SerializedObject(gm);
+        soGm.FindProperty("configRubros").objectReferenceValue = rubros;
+        soGm.ApplyModifiedPropertiesWithoutUndo();
+
+        // 2) Cartel de bienvenida (encima de todo)
+        DestruirDescendiente(area.transform, "Bienvenida");
+        RectTransform raiz = CrearHijoEstirado("Bienvenida", area.transform);
+        raiz.SetAsLastSibling();
+
+        RectTransform panel = CrearHijoEstirado("Panel", raiz);
+        Image oscuro = panel.gameObject.AddComponent<Image>();
+        Color sombra = Tema.texto;
+        sombra.a = 0.55f;
+        oscuro.color = sombra; // bloquea los toques de atrás
+
+        RectTransform tarjeta = CrearRect("Tarjeta", panel);
+        tarjeta.anchorMin = tarjeta.anchorMax = new Vector2(0.5f, 0.5f);
+        tarjeta.pivot = new Vector2(0.5f, 0.5f);
+        tarjeta.sizeDelta = new Vector2(920f, 1240f);
+        tarjeta.anchoredPosition = Vector2.zero;
+        AgregarImagenRedondeada(tarjeta.gameObject, Tema.panel, 0.3f);
+
+        TextMeshProUGUI titulo = CrearTexto("Titulo", tarjeta, "¡Fundá tu empresa!", 60, Tema.texto);
+        FilaArriba(titulo.rectTransform, 40f, 40f, 44f, 80f);
+
+        TextMeshProUGUI subtitulo = CrearTexto("Subtitulo", tarjeta,
+            "Todo gran imperio empezó en un garaje.", 30, Tema.textoSuave);
+        subtitulo.fontStyle = FontStyles.Normal;
+        FilaArriba(subtitulo.rectTransform, 40f, 40f, 126f, 44f);
+
+        // Nombre
+        TextMeshProUGUI etiquetaNombre = CrearTexto("EtiquetaNombre", tarjeta, "¿Cómo se llama?", 34, Tema.texto);
+        etiquetaNombre.alignment = TextAlignmentOptions.MidlineLeft;
+        FilaArriba(etiquetaNombre.rectTransform, 50f, 50f, 200f, 50f);
+
+        TMP_InputField campo = CrearCampoTexto(tarjeta);
+        FilaArriba((RectTransform)campo.transform, 50f, 50f, 258f, 110f);
+
+        // Rubro
+        TextMeshProUGUI etiquetaRubro = CrearTexto("EtiquetaRubro", tarjeta, "¿A qué se dedica?", 34, Tema.texto);
+        etiquetaRubro.alignment = TextAlignmentOptions.MidlineLeft;
+        FilaArriba(etiquetaRubro.rectTransform, 50f, 50f, 396f, 50f);
+
+        RectTransform grilla = CrearRect("Rubros", tarjeta);
+        FilaArriba(grilla, 50f, 50f, 456f, 500f);
+        GridLayoutGroup gl = grilla.gameObject.AddComponent<GridLayoutGroup>();
+        gl.cellSize = new Vector2(400f, 104f);
+        gl.spacing = new Vector2(20f, 18f);
+        gl.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        gl.constraintCount = 2;
+        gl.childAlignment = TextAnchor.UpperCenter;
+
+        // Plantilla (inactiva) que el script copia una vez por rubro
+        RectTransform rtPlantilla = CrearRect("PlantillaRubro", grilla);
+        Image imgPlantilla = AgregarImagenRedondeada(rtPlantilla.gameObject, Tema.botonSecundario, 0.3f);
+        Button plantilla = rtPlantilla.gameObject.AddComponent<Button>();
+        ConfigurarBoton(plantilla, imgPlantilla);
+        TextMeshProUGUI textoPlantilla = CrearTexto("Texto", rtPlantilla, "Rubro", 34, Tema.texto);
+        Estirar(textoPlantilla.rectTransform);
+        rtPlantilla.gameObject.SetActive(false);
+
+        // Ayuda + botón Empezar
+        TextMeshProUGUI ayuda = CrearTexto("TextoAyuda", tarjeta, "Escribí el nombre de tu empresa", 28, Tema.textoSuave);
+        ayuda.fontStyle = FontStyles.Normal;
+        RectTransform rtAyuda = ayuda.rectTransform;
+        rtAyuda.anchorMin = new Vector2(0f, 0f);
+        rtAyuda.anchorMax = new Vector2(1f, 0f);
+        rtAyuda.pivot = new Vector2(0.5f, 0f);
+        rtAyuda.offsetMin = new Vector2(40f, 196f);
+        rtAyuda.offsetMax = new Vector2(-40f, 240f);
+
+        RectTransform rtBoton = CrearRect("BotonEmpezar", tarjeta);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(0.5f, 0f);
+        rtBoton.pivot = new Vector2(0.5f, 0f);
+        rtBoton.sizeDelta = new Vector2(560f, 130f);
+        rtBoton.anchoredPosition = new Vector2(0f, 50f);
+        Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Tema.botonFacturar, 0.3f);
+        Button botonEmpezar = rtBoton.gameObject.AddComponent<Button>();
+        ConfigurarBoton(botonEmpezar, imgBoton);
+        TextMeshProUGUI textoBoton = CrearTexto("Texto", rtBoton, "¡Empezar!", 48, Tema.textoBoton);
+        Estirar(textoBoton.rectTransform);
+
+        // Script
+        UIBienvenida bienvenida = raiz.gameObject.AddComponent<UIBienvenida>();
+        SerializedObject so = new SerializedObject(bienvenida);
+        so.FindProperty("panel").objectReferenceValue = panel.gameObject;
+        so.FindProperty("tarjeta").objectReferenceValue = tarjeta;
+        so.FindProperty("campoNombre").objectReferenceValue = campo;
+        so.FindProperty("contenedorRubros").objectReferenceValue = grilla;
+        so.FindProperty("plantillaRubro").objectReferenceValue = plantilla;
+        so.FindProperty("botonEmpezar").objectReferenceValue = botonEmpezar;
+        so.FindProperty("textoAyuda").objectReferenceValue = ayuda;
+        so.FindProperty("colorTextoNormal").colorValue = Tema.texto;
+        so.FindProperty("colorTextoElegido").colorValue = Tema.textoBoton;
+        so.ApplyModifiedPropertiesWithoutUndo();
+
+        panel.gameObject.SetActive(false); // el script lo muestra si hace falta
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 13 listo. Rubros en " + RutaRubros +
+                  ". Para ver el cartel: Herramientas > Borrar partida guardada y Play.");
+    }
+
+    private static RubrosConfig CrearOObtenerRubros()
+    {
+        RubrosConfig existente = AssetDatabase.LoadAssetAtPath<RubrosConfig>(RutaRubros);
+        if (existente != null) return existente; // no pisa lo que editaste a mano
+
+        RubrosConfig config = ScriptableObject.CreateInstance<RubrosConfig>();
+        AgregarRubro(config, "tecnologia", "Tecnología", "#8FA3E0", "Programando en un garaje");
+        AgregarRubro(config, "pasteleria", "Pastelería", "#F28DB8", "Horneando en un garaje");
+        AgregarRubro(config, "moda", "Moda", "#B18AE6", "Cosiendo en un garaje");
+        AgregarRubro(config, "cafeteria", "Cafetería", "#D4A373", "Sirviendo cafés en un garaje");
+        AgregarRubro(config, "videojuegos", "Videojuegos", "#6CC3D9", "Haciendo juegos en un garaje");
+        AgregarRubro(config, "cosmetica", "Cosmética", "#F5A26B", "Mezclando cremas en un garaje");
+        AgregarRubro(config, "floreria", "Florería", "#6CCB9F", "Armando ramos en un garaje");
+        AgregarRubro(config, "mascotas", "Mascotas", "#E3B23C", "Paseando perros desde un garaje");
+
+        AssetDatabase.CreateAsset(config, RutaRubros);
+        AssetDatabase.SaveAssets();
+        return config;
+    }
+
+    private static void AgregarRubro(RubrosConfig config, string id, string nombre, string colorHex, string etapaInicial)
+    {
+        config.rubros.Add(new RubrosConfig.Rubro
+        {
+            id = id,
+            nombre = nombre,
+            color = Hex(colorHex),
+            etapaInicial = etapaInicial
+        });
+    }
+
+    /// <summary>Campo de texto de TextMeshPro con el estilo del juego.</summary>
+    private static TMP_InputField CrearCampoTexto(Transform padre)
+    {
+        GameObject go = TMP_DefaultControls.CreateInputField(new TMP_DefaultControls.Resources());
+        go.name = "CampoNombre";
+        foreach (Transform t in go.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = LayerMask.NameToLayer("UI");
+        go.transform.SetParent(padre, false);
+
+        Image fondo = go.GetComponent<Image>();
+        fondo.sprite = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
+        fondo.type = Image.Type.Sliced;
+        fondo.pixelsPerUnitMultiplier = 0.3f;
+        fondo.color = Tema.botonSecundario;
+
+        TMP_InputField campo = go.GetComponent<TMP_InputField>();
+        campo.characterLimit = GameManager.MaxLargoNombre;
+        campo.lineType = TMP_InputField.LineType.SingleLine;
+
+        RectTransform area = campo.textViewport;
+        area.offsetMin = new Vector2(30f, 10f);
+        area.offsetMax = new Vector2(-30f, -10f);
+
+        TMP_Text texto = campo.textComponent;
+        texto.fontSize = 46f;
+        texto.color = Tema.texto;
+        texto.alignment = TextAlignmentOptions.MidlineLeft;
+
+        if (campo.placeholder is TMP_Text placeholder)
+        {
+            placeholder.text = "Ej: Mimi";
+            placeholder.fontSize = 46f;
+            placeholder.fontStyle = FontStyles.Italic;
+            placeholder.alignment = TextAlignmentOptions.MidlineLeft;
+            Color suave = Tema.textoSuave;
+            suave.a = 0.6f;
+            placeholder.color = suave;
+        }
+
+        return campo;
+    }
+
     private static void AsignarSonidoSiFalta(SerializedObject so, string propiedad, string archivo)
     {
         SerializedProperty prop = so.FindProperty(propiedad);
@@ -972,6 +1172,7 @@ public static class ConfiguradorProyecto
         ConfigurarPaso9();
         ConfigurarPaso10();
         ConfigurarPaso11();
+        ConfigurarPaso13();
 
         AssetDatabase.SaveAssets();
         Selection.activeObject = tema;
@@ -1411,6 +1612,10 @@ public static class ConfiguradorProyecto
         TextMeshProUGUI etapa = CrearTexto("TextoEtapa", barra, "Freelancer en un garaje", 28, Tema.acento);
         etapa.alignment = TextAlignmentOptions.MidlineLeft;
         etapa.overflowMode = TextOverflowModes.Ellipsis;
+        etapa.textWrappingMode = TextWrappingModes.NoWrap; // una sola línea
+        etapa.enableAutoSizing = true;
+        etapa.fontSizeMin = 16f;
+        etapa.fontSizeMax = 28f;
         FilaArriba(etapa.rectTransform, 32f, 520f, 30f, 40f);
 
         TextMeshProUGUI empresa = CrearTexto("TextoEmpresa", barra, "Garaje Unipersonal", 44, Tema.texto);

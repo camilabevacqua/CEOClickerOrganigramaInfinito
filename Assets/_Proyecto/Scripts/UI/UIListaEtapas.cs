@@ -61,7 +61,10 @@ public class UIListaEtapas : MonoBehaviour
             EstadoEtapa estado = i < gm.IndiceEtapa ? EstadoEtapa.Lograda
                                : i == gm.IndiceEtapa ? EstadoEtapa.Actual
                                : EstadoEtapa.Futura;
-            filas[i].Mostrar(i + 1, gm.Etapa(i), estado);
+            EtapasConfig.Etapa etapa = gm.Etapa(i);
+            if (etapa == null) continue;
+            // Nombres con el rubro y el nombre que eligió el jugador
+            filas[i].Mostrar(i + 1, gm.NombreEtapa(i), gm.NombreEmpresa(i), etapa.minimoFacturado, estado);
         }
     }
 }

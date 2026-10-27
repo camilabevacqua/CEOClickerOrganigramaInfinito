@@ -19,6 +19,8 @@ public class DatosGuardado
     public double facturadoHistorico;
     public long clicsTotales;
     public int acciones;
+    public string nombreEmpresa = "";
+    public string rubroId = "";
 
     public List<RegistroId> puestos = new List<RegistroId>();
     public List<RegistroId> departamentos = new List<RegistroId>();

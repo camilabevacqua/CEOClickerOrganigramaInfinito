@@ -14,6 +14,7 @@ public class GameManager : MonoBehaviour
     private const float IntervaloAutoguardado = 5f;
     private const double MaxSegundosOffline = 8 * 3600;   // 8 horas
     private const double MinSegundosParaAviso = 10;       // ausencias cortas no muestran cartel
+    public const int MaxLargoNombre = 20;                 // caracteres del nombre de la empresa
     public const double MinimoParaBolsa = 1e6;            // facturación de la partida para salir a la bolsa
     private const double DivisorAcciones = 100000;
 
@@ -27,6 +28,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Etapas de la empresa")]
     [SerializeField] private EtapasConfig configEtapas;
+
+    [Header("Rubros para fundar la empresa")]
+    [SerializeField] private RubrosConfig configRubros;
 
     [Header("Guardado")]
     [Tooltip("Destildalo para probar siempre desde cero en el editor.")]
@@ -56,6 +60,9 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Se dispara al salir a la bolsa, con las acciones ganadas.</summary>
     public event Action<int> OnSalidaABolsa;
+
+    /// <summary>Se dispara cuando el jugador elige nombre y rubro.</summary>
+    public event Action OnEmpresaFundada;
 
     /// <summary>Se dispara al borrar la partida.</summary>
     public event Action OnPartidaBorrada;
@@ -165,7 +172,9 @@ public class GameManager : MonoBehaviour
             facturadoPartida = Estado.facturadoPartida,
             facturadoHistorico = Estado.facturadoHistorico,
             clicsTotales = Estado.clicsTotales,
-            acciones = Estado.acciones
+            acciones = Estado.acciones,
+            nombreEmpresa = Estado.nombreEmpresa,
+            rubroId = Estado.rubroId
         };
 
         for (int i = 0; i < puestos.Length; i++)
@@ -191,7 +200,9 @@ public class GameManager : MonoBehaviour
             facturadoPartida = Math.Max(0, datos.facturadoPartida),
             facturadoHistorico = Math.Max(0, datos.facturadoHistorico),
             clicsTotales = Math.Max(0, datos.clicsTotales),
-            acciones = Math.Max(0, datos.acciones)
+            acciones = Math.Max(0, datos.acciones),
+            nombreEmpresa = datos.nombreEmpresa ?? "",
+            rubroId = datos.rubroId ?? ""
         };
         AjustarEstado();
 
@@ -237,6 +248,51 @@ public class GameManager : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    // Rubro y nombre de la empresa
+    // ------------------------------------------------------------------
+
+    public IReadOnlyList<RubrosConfig.Rubro> Rubros =>
+        configRubros != null ? configRubros.rubros : (IReadOnlyList<RubrosConfig.Rubro>)Array.Empty<RubrosConfig.Rubro>();
+
+    /// <summary>True cuando el jugador ya eligió nombre y rubro.</summary>
+    public bool EmpresaFundada => !string.IsNullOrWhiteSpace(Estado.nombreEmpresa);
+
+    public RubrosConfig.Rubro RubroActual
+    {
+        get
+        {
+            if (configRubros == null || string.IsNullOrEmpty(Estado.rubroId)) return null;
+            return configRubros.rubros.Find(r => r.id == Estado.rubroId);
+        }
+    }
+
+    /// <summary>Guarda el nombre y el rubro elegidos. Devuelve false si el nombre queda vacío.</summary>
+    public bool FundarEmpresa(string nombre, string rubroId)
+    {
+        string limpio = LimpiarNombre(nombre);
+        if (string.IsNullOrEmpty(limpio)) return false;
+
+        Estado.nombreEmpresa = limpio;
+        Estado.rubroId = rubroId ?? "";
+        Guardar();
+
+        OnEmpresaFundada?.Invoke();
+        AvisarCambio();
+        return true;
+    }
+
+    /// <summary>Saca espacios de más y los signos &lt; &gt; (TextMeshPro los tomaría como etiquetas).</summary>
+    public static string LimpiarNombre(string nombre)
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return "";
+
+        string limpio = nombre.Replace("<", "").Replace(">", "").Trim();
+        while (limpio.Contains("  ")) limpio = limpio.Replace("  ", " ");
+        if (limpio.Length > MaxLargoNombre) limpio = limpio.Substring(0, MaxLargoNombre).Trim();
+        return limpio;
+    }
+
+    // ------------------------------------------------------------------
     // Salir a la bolsa (prestigio) y borrar partida
     // ------------------------------------------------------------------
 
@@ -260,7 +316,9 @@ public class GameManager : MonoBehaviour
         {
             acciones = anterior.acciones + ganadas,
             facturadoHistorico = anterior.facturadoHistorico,
-            clicsTotales = anterior.clicsTotales
+            clicsTotales = anterior.clicsTotales,
+            nombreEmpresa = anterior.nombreEmpresa,
+            rubroId = anterior.rubroId
         };
         AjustarEstado();
         ActualizarEtapa(false);
@@ -561,6 +619,34 @@ public class GameManager : MonoBehaviour
             double progreso = (Estado.facturadoPartida - actual.minimoFacturado) / tramo;
             return Math.Max(0.0, Math.Min(1.0, progreso));
         }
+    }
+
+    /// <summary>
+    /// Nombre de la etapa. La primera usa el texto del rubro (ej: "Horneando en un garaje").
+    /// </summary>
+    public string NombreEtapa(int indice)
+    {
+        EtapasConfig.Etapa etapa = Etapa(indice);
+        if (etapa == null) return "";
+
+        RubrosConfig.Rubro rubro = RubroActual;
+        if (indice == 0 && rubro != null && !string.IsNullOrWhiteSpace(rubro.etapaInicial)) return rubro.etapaInicial;
+        return etapa.nombreEtapa;
+    }
+
+    /// <summary>
+    /// Nombre de la empresa en esa etapa, con el nombre del jugador en lugar de "Garaje"
+    /// (o de "{nombre}", si lo usás en el asset de Etapas). Ej: "Mimi S.R.L.".
+    /// </summary>
+    public string NombreEmpresa(int indice)
+    {
+        EtapasConfig.Etapa etapa = Etapa(indice);
+        if (etapa == null) return "";
+
+        string nombre = EmpresaFundada ? Estado.nombreEmpresa : "Garaje";
+        return etapa.nombreEmpresa.Contains("{nombre}")
+            ? etapa.nombreEmpresa.Replace("{nombre}", nombre)
+            : etapa.nombreEmpresa.Replace("Garaje", nombre);
     }
 
     private int CalcularIndiceEtapa()

@@ -28,13 +28,11 @@ public class UIEtapaItem : MonoBehaviour
 
     private EstadoEtapa? ultimoEstado;
 
-    public void Mostrar(int numero, EtapasConfig.Etapa etapa, EstadoEtapa estado)
+    public void Mostrar(int numero, string nombreEtapa, string nombreEmpresa, double minimoFacturado, EstadoEtapa estado)
     {
-        if (etapa == null) return;
-
         Poner(textoNumero, numero.ToString());
-        Poner(textoEtapa, etapa.nombreEtapa);
-        Poner(textoEmpresa, etapa.nombreEmpresa);
+        Poner(textoEtapa, nombreEtapa);
+        Poner(textoEmpresa, nombreEmpresa);
 
         switch (estado)
         {
@@ -45,7 +43,7 @@ public class UIEtapaItem : MonoBehaviour
                 Poner(textoMeta, "Actual");
                 break;
             default:
-                Poner(textoMeta, FormatoNumeros.Plata(etapa.minimoFacturado));
+                Poner(textoMeta, FormatoNumeros.Plata(minimoFacturado));
                 break;
         }
 
