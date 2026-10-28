@@ -18,8 +18,8 @@ MonoBehaviour:
   inicial: D
   color: {r: 0.9607843, g: 0.63529414, b: 0.41960785, a: 1}
   descripcion: "Define la estrategia desde un sill\xF3n de cuero."
-  costoBase: 15000
-  produccionPorSegundo: 120
+  costoBase: 50000
+  produccionPorSegundo: 180
   sinLimite: 0
   lugaresBase: 2
   jefe: {fileID: 11400000, guid: 11b3f4877f81d844da7928b3362533b7, type: 2}

@@ -24,6 +24,10 @@ public class DatosGuardado
 
     public List<RegistroId> puestos = new List<RegistroId>();
     public List<RegistroId> departamentos = new List<RegistroId>();
+    public List<RegistroId> personalRoles = new List<RegistroId>();          // id = "departamento/rol"
+
+    // Versión vieja (un solo tipo de personal por departamento): se lee para no perder partidas
+    public List<RegistroId> personalDepartamentos = new List<RegistroId>();
 }
 
 /// <summary>Par id → valor (cantidad de un puesto o nivel de un departamento).</summary>

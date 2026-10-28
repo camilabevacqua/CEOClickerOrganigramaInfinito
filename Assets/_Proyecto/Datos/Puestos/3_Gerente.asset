@@ -18,8 +18,8 @@ MonoBehaviour:
   inicial: G
   color: {r: 0.42352942, g: 0.79607844, b: 0.62352943, a: 1}
   descripcion: "Arma reuniones que podr\xEDan haber sido un mail."
-  costoBase: 1300
-  produccionPorSegundo: 20
+  costoBase: 3000
+  produccionPorSegundo: 24
   sinLimite: 0
   lugaresBase: 2
   jefe: {fileID: 11400000, guid: aa1a415ddb4cc7c47b58143909f61756, type: 2}

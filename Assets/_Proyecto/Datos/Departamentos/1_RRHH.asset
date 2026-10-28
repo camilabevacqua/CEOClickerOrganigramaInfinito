@@ -16,12 +16,37 @@ MonoBehaviour:
   nombre: Recursos Humanos
   sigla: RRHH
   color: {r: 0.93333334, g: 0.49803922, b: 0.6901961, a: 1}
-  descripcion: 'Capacitaciones y after office: todo el personal produce +25% por
+  descripcion: 'Capacitaciones y after office: todo el personal produce +15% por
     nivel.'
-  costoBase: 400
-  multiplicadorCosto: 2.4
+  costoBase: 600
+  multiplicadorCosto: 3.2
   nivelMaximo: 0
-  bonusProduccionPorNivel: 0.25
+  bonusProduccionPorNivel: 0.15
   bonusClicPorNivel: 0
   porcentajeIngresoAlClicPorNivel: 0
   descuentoContratacionPorNivel: 1
+  roles:
+  - id: reclutador
+    nombre: Reclutador
+    nombrePlural: Reclutadores
+    inicial: R
+    nivelRequerido: 1
+    lugaresPorNivel: 2
+    costoBase: 3000
+    crecimientoCosto: 1.4
+    bonusProduccion: 0.02
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 1
+  - id: capacitador
+    nombre: Capacitador
+    nombrePlural: Capacitadores
+    inicial: Ca
+    nivelRequerido: 3
+    lugaresPorNivel: 1
+    costoBase: 50000
+    crecimientoCosto: 1.45
+    bonusProduccion: 0.05
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 1

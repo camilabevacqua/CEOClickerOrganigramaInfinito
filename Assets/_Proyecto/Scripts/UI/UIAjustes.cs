@@ -3,14 +3,16 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Botones "Sonido: Sí/No" y "Vibración: Sí/No" de la pestaña Empresa.
+/// Botones "Sonido", "Música" y "Vibración" (Sí/No) de la pestaña Empresa.
 /// Solo lee y cambia los ajustes de Feedback.
 /// </summary>
 public class UIAjustes : MonoBehaviour
 {
     [SerializeField] private Button botonSonido;
+    [SerializeField] private Button botonMusica;
     [SerializeField] private Button botonVibracion;
     [SerializeField] private TMP_Text textoSonido;
+    [SerializeField] private TMP_Text textoMusica;
     [SerializeField] private TMP_Text textoVibracion;
 
     [Header("Colores")]
@@ -21,8 +23,9 @@ public class UIAjustes : MonoBehaviour
 
     private void Start()
     {
-        botonSonido.onClick.AddListener(AlternarSonido);
-        botonVibracion.onClick.AddListener(AlternarVibracion);
+        if (botonSonido != null) botonSonido.onClick.AddListener(AlternarSonido);
+        if (botonMusica != null) botonMusica.onClick.AddListener(AlternarMusica);
+        if (botonVibracion != null) botonVibracion.onClick.AddListener(AlternarVibracion);
 
         if (Feedback.Instance != null)
         {
@@ -43,6 +46,11 @@ public class UIAjustes : MonoBehaviour
         if (Feedback.Instance != null) Feedback.Instance.CambiarSonido(!Feedback.Instance.SonidoActivado);
     }
 
+    private void AlternarMusica()
+    {
+        if (Feedback.Instance != null) Feedback.Instance.CambiarMusica(!Feedback.Instance.MusicaActivada);
+    }
+
     private void AlternarVibracion()
     {
         if (Feedback.Instance != null) Feedback.Instance.CambiarVibracion(!Feedback.Instance.VibracionActivada);
@@ -51,13 +59,14 @@ public class UIAjustes : MonoBehaviour
     private void Refrescar()
     {
         Feedback f = Feedback.Instance;
-        bool sonido = f == null || f.SonidoActivado;
-        bool vibracion = f == null || f.VibracionActivada;
+        Pintar(botonSonido, textoSonido, "Sonido", f == null || f.SonidoActivado);
+        Pintar(botonMusica, textoMusica, "Música", f == null || f.MusicaActivada);
+        Pintar(botonVibracion, textoVibracion, "Vibración", f == null || f.VibracionActivada);
+    }
 
-        textoSonido.text = sonido ? "Sonido: Sí" : "Sonido: No";
-        textoVibracion.text = vibracion ? "Vibración: Sí" : "Vibración: No";
-
-        if (botonSonido.targetGraphic != null) botonSonido.targetGraphic.color = sonido ? colorEncendido : colorApagado;
-        if (botonVibracion.targetGraphic != null) botonVibracion.targetGraphic.color = vibracion ? colorEncendido : colorApagado;
+    private void Pintar(Button boton, TMP_Text texto, string nombre, bool encendido)
+    {
+        if (texto != null) texto.text = nombre + (encendido ? ": Sí" : ": No");
+        if (boton != null && boton.targetGraphic != null) boton.targetGraphic.color = encendido ? colorEncendido : colorApagado;
     }
 }

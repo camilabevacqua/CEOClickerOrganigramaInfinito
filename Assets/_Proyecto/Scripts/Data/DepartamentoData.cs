@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -38,4 +40,43 @@ public class DepartamentoData : ScriptableObject
 
     [Tooltip("Costo de contratar × esto ^ nivel. 1 = sin efecto. Finanzas = 0.95")]
     public double descuentoContratacionPorNivel = 1;
+
+    [Header("Puestos internos del departamento (se desbloquean subiendo de nivel)")]
+    public List<RolDepartamento> roles = new List<RolDepartamento>();
+}
+
+/// <summary>
+/// Un puesto de trabajo dentro de un departamento (ej: Reclutador, Capacitador...).
+/// Cada nivel del departamento a partir de "nivelRequerido" abre "lugaresPorNivel" lugares.
+/// </summary>
+[Serializable]
+public class RolDepartamento
+{
+    [Tooltip("Identificador único para el guardado. No cambiarlo una vez publicado el juego.")]
+    public string id = "rol";
+    public string nombre = "Especialista";
+    public string nombrePlural = "Especialistas";
+    [Tooltip("Letra(s) para la insignia. Ej: R")]
+    public string inicial = "P";
+
+    [Header("Desbloqueo y lugares")]
+    [Tooltip("Nivel del departamento desde el que se puede contratar.")]
+    [Min(1)] public int nivelRequerido = 1;
+    [Tooltip("Lugares que abre cada nivel del departamento (desde el nivel requerido).")]
+    [Min(0)] public int lugaresPorNivel = 1;
+
+    [Header("Costo")]
+    public double costoBase = 1000;
+    [Tooltip("Cada contratación siguiente cuesta esto × la anterior.")]
+    public double crecimientoCosto = 1.4;
+
+    [Header("Efecto de cada persona (dejá en 0 lo que no use)")]
+    [Tooltip("Producción de todo el personal: se suma al bonus del departamento. Ej: 0.02 = +2%")]
+    public double bonusProduccion = 0;
+    [Tooltip("Se suma al valor base del clic. Ej: 1 = +$1")]
+    public double bonusClic = 0;
+    [Tooltip("Se suma al % de $/s que da cada clic. Ej: 0.001 = +0.1%")]
+    public double porcentajeIngresoAlClic = 0;
+    [Tooltip("Costo de contratar × esto por persona. 1 = sin efecto. Ej: 0.985 = -1.5%")]
+    public double descuentoContratacion = 1;
 }

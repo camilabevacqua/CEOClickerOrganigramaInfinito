@@ -18,7 +18,7 @@ MonoBehaviour:
   inicial: S
   color: {r: 0.42352942, g: 0.7647059, b: 0.8509804, a: 1}
   descripcion: Controla que nadie se cuelgue con el celular.
-  costoBase: 120
+  costoBase: 200
   produccionPorSegundo: 3
   sinLimite: 0
   lugaresBase: 2

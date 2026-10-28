@@ -16,12 +16,49 @@ MonoBehaviour:
   nombre: Marketing
   sigla: MKT
   color: {r: 0.9490196, g: 0.6039216, b: 0.36078432, a: 1}
-  descripcion: "Publicidad en redes: el clic vale m\xE1s, suma 1% de tu $/s por nivel
-    y la producci\xF3n sube +10%."
-  costoBase: 60
-  multiplicadorCosto: 2.2
+  descripcion: "Publicidad en redes: +$1 y +0.4% de tu $/s en cada clic, y +5% de
+    producci\xF3n por nivel."
+  costoBase: 100
+  multiplicadorCosto: 3
   nivelMaximo: 0
-  bonusProduccionPorNivel: 0.1
+  bonusProduccionPorNivel: 0.05
   bonusClicPorNivel: 1
-  porcentajeIngresoAlClicPorNivel: 0.01
+  porcentajeIngresoAlClicPorNivel: 0.004
   descuentoContratacionPorNivel: 1
+  roles:
+  - id: community
+    nombre: Community manager
+    nombrePlural: Community managers
+    inicial: CM
+    nivelRequerido: 1
+    lugaresPorNivel: 2
+    costoBase: 400
+    crecimientoCosto: 1.4
+    bonusProduccion: 0
+    bonusClic: 1
+    porcentajeIngresoAlClic: 0.001
+    descuentoContratacion: 1
+  - id: disenador
+    nombre: "Dise\xF1ador gr\xE1fico"
+    nombrePlural: "Dise\xF1adores gr\xE1ficos"
+    inicial: Di
+    nivelRequerido: 3
+    lugaresPorNivel: 1
+    costoBase: 8000
+    crecimientoCosto: 1.45
+    bonusProduccion: 0
+    bonusClic: 3
+    porcentajeIngresoAlClic: 0.002
+    descuentoContratacion: 1
+  - id: creador
+    nombre: Creador de contenido
+    nombrePlural: Creadores de contenido
+    inicial: Cc
+    nivelRequerido: 6
+    lugaresPorNivel: 1
+    costoBase: 250000
+    crecimientoCosto: 1.5
+    bonusProduccion: 0
+    bonusClic: 10
+    porcentajeIngresoAlClic: 0.004
+    descuentoContratacion: 1

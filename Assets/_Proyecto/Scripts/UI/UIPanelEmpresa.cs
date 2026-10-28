@@ -85,25 +85,26 @@ public class UIPanelEmpresa : MonoBehaviour
         else
         {
             mensaje = null;
-            int porcentaje = estado.acciones * 10;
+            long porcentaje = (long)estado.acciones * 10;
             Poner(textoAcciones, $"Tenés {estado.acciones} acciones (+{porcentaje}% producción y clic)");
         }
 
         // --- Bolsa ---
         if (gm.PuedeSalirABolsa)
         {
+            int acciones = gm.AccionesAGanar;
             Poner(textoBolsaDetalle,
-                "Reinicia plata, personal y departamentos. Conservás tus acciones, " +
-                $"la facturación histórica ({FormatoNumeros.Plata(estado.facturadoHistorico)}) y los tratos.");
-            botonBolsa.PonerTextoNormal($"Salir a la bolsa: +{gm.AccionesAGanar} acciones");
+                "Tu empresa sale a la bolsa y queda en manos de los accionistas. " +
+                $"Vos te llevás +{acciones} acciones y empezás una empresa nueva con +10% por acción.");
+            botonBolsa.PonerTextoNormal($"Salir a la bolsa y fundar otra empresa (+{acciones} acciones)");
             botonBolsa.PonerInteractuable(true);
         }
         else
         {
             Poner(textoBolsaDetalle,
-                $"Facturá {FormatoNumeros.Plata(GameManager.MinimoParaBolsa)} en esta partida para salir a la bolsa. " +
+                $"Facturá {FormatoNumeros.Plata(GameManager.MinimoParaBolsa)} en esta empresa para salir a la bolsa. " +
                 $"Llevás {FormatoNumeros.Plata(estado.facturadoPartida)}.");
-            botonBolsa.PonerTextoNormal("Salir a la bolsa");
+            botonBolsa.PonerTextoNormal("Salir a la bolsa y fundar otra empresa");
             botonBolsa.PonerInteractuable(false);
         }
     }

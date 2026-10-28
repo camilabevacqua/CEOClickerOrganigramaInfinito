@@ -9,7 +9,6 @@ using UnityEngine;
 [DefaultExecutionOrder(-100)] // se inicializa antes que los scripts de UI
 public class GameManager : MonoBehaviour
 {
-    private const double CrecimientoCosto = 1.15;
     private const int MaxCompraPorVez = 100000;
     private const float IntervaloAutoguardado = 5f;
     private const double MaxSegundosOffline = 8 * 3600;   // 8 horas
@@ -17,8 +16,13 @@ public class GameManager : MonoBehaviour
     public const int MaxLargoNombre = 20;                 // caracteres del nombre de la empresa
     public const double MinimoParaBolsa = 1e6;            // facturación de la partida para salir a la bolsa
     private const double DivisorAcciones = 100000;
+    public const int MaxAcciones = 1000000000;            // tope para que el número entero no se desborde
 
     public static GameManager Instance { get; private set; }
+
+    [Header("Economía")]
+    [Tooltip("Cada contratación de un puesto cuesta esto × la anterior.")]
+    [SerializeField] private double crecimientoCosto = 1.2;
 
     [Header("Datos (en orden: Empleado → Vicepresidente)")]
     [SerializeField] private PuestoData[] puestos = new PuestoData[0];
@@ -51,6 +55,18 @@ public class GameManager : MonoBehaviour
 
     /// <summary>Se dispara al subir de nivel un departamento.</summary>
     public event Action<DepartamentoData> OnDepartamentoMejorado;
+
+    /// <summary>Se dispara al contratar personal de un departamento.</summary>
+    public event Action<DepartamentoData, RolDepartamento> OnPersonalDepartamentoContratado;
+
+    // Todos los puestos internos de todos los departamentos, en orden (para el estado y el guardado)
+    private struct RolRegistrado
+    {
+        public DepartamentoData departamento;
+        public RolDepartamento rol;
+    }
+    private readonly List<RolRegistrado> roles = new List<RolRegistrado>();
+    private readonly Dictionary<RolDepartamento, int> indiceRoles = new Dictionary<RolDepartamento, int>();
 
     /// <summary>Se dispara al pasar a una etapa nueva (índice de la etapa).</summary>
     public event Action<int> OnCambioEtapa;
@@ -92,6 +108,7 @@ public class GameManager : MonoBehaviour
 
         if (puestos == null) puestos = new PuestoData[0];
         if (departamentos == null) departamentos = new DepartamentoData[0];
+        RegistrarRoles();
         AjustarEstado();
         if (cargarAlIniciar) Cargar();
         ActualizarEtapa(false);
@@ -189,6 +206,11 @@ public class GameManager : MonoBehaviour
             datos.departamentos.Add(new RegistroId { id = departamentos[i].id, valor = Estado.nivelesDepartamentos[i] });
         }
 
+        for (int i = 0; i < roles.Count; i++)
+        {
+            datos.personalRoles.Add(new RegistroId { id = IdRol(roles[i]), valor = Estado.personalRoles[i] });
+        }
+
         return datos;
     }
 
@@ -200,7 +222,7 @@ public class GameManager : MonoBehaviour
             facturadoPartida = Math.Max(0, datos.facturadoPartida),
             facturadoHistorico = Math.Max(0, datos.facturadoHistorico),
             clicsTotales = Math.Max(0, datos.clicsTotales),
-            acciones = Math.Max(0, datos.acciones),
+            acciones = Math.Max(0, Math.Min(MaxAcciones, datos.acciones)),
             nombreEmpresa = datos.nombreEmpresa ?? "",
             rubroId = datos.rubroId ?? ""
         };
@@ -224,6 +246,26 @@ public class GameManager : MonoBehaviour
                 int nivel = Math.Max(0, r.valor);
                 if (departamentos[i].nivelMaximo > 0) nivel = Math.Min(nivel, departamentos[i].nivelMaximo);
                 Estado.nivelesDepartamentos[i] = nivel;
+            }
+        }
+
+        if (datos.personalRoles != null && datos.personalRoles.Count > 0)
+        {
+            foreach (RegistroId r in datos.personalRoles)
+            {
+                int i = roles.FindIndex(x => IdRol(x) == r.id);
+                if (i < 0) continue;
+                Estado.personalRoles[i] = Math.Max(0, Math.Min(r.valor, CapacidadRol(roles[i].departamento, roles[i].rol)));
+            }
+        }
+        else if (datos.personalDepartamentos != null)
+        {
+            // Partida de la versión anterior: ese personal pasa al primer puesto interno del departamento
+            foreach (RegistroId r in datos.personalDepartamentos)
+            {
+                int i = roles.FindIndex(x => x.departamento.id == r.id);
+                if (i < 0) continue;
+                Estado.personalRoles[i] = Math.Max(0, Math.Min(r.valor, CapacidadRol(roles[i].departamento, roles[i].rol)));
             }
         }
     }
@@ -299,7 +341,15 @@ public class GameManager : MonoBehaviour
     public bool PuedeSalirABolsa => Estado.facturadoPartida >= MinimoParaBolsa;
 
     /// <summary>Acciones que ganás = floor(sqrt(facturadoEnLaPartida / 100000)).</summary>
-    public int AccionesAGanar => (int)Math.Floor(Math.Sqrt(Estado.facturadoPartida / DivisorAcciones));
+    public int AccionesAGanar
+    {
+        get
+        {
+            // Con facturaciones gigantes la raíz no entra en un int: se topea (antes daba negativo)
+            double acciones = Math.Floor(Math.Sqrt(Math.Max(0, Estado.facturadoPartida) / DivisorAcciones));
+            return (int)Math.Min(MaxAcciones, acciones);
+        }
+    }
 
     /// <summary>
     /// Reinicia plata, puestos y departamentos.
@@ -314,7 +364,7 @@ public class GameManager : MonoBehaviour
         EstadoJuego anterior = Estado;
         Estado = new EstadoJuego
         {
-            acciones = anterior.acciones + ganadas,
+            acciones = (int)Math.Min(MaxAcciones, (long)anterior.acciones + ganadas),
             facturadoHistorico = anterior.facturadoHistorico,
             clicsTotales = anterior.clicsTotales,
             nombreEmpresa = anterior.nombreEmpresa,
@@ -370,6 +420,15 @@ public class GameManager : MonoBehaviour
         {
             Array.Resize(ref Estado.nivelesDepartamentos, departamentos.Length);
         }
+
+        if (Estado.personalRoles == null)
+        {
+            Estado.personalRoles = new int[roles.Count];
+        }
+        else if (Estado.personalRoles.Length != roles.Count)
+        {
+            Array.Resize(ref Estado.personalRoles, roles.Count);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -380,8 +439,8 @@ public class GameManager : MonoBehaviour
     public double MultAcciones => 1.0 + 0.1 * Estado.acciones;
 
     /// <summary>
-    /// multProducción = (1 + 0.25×RRHH) × (1 + 0.1×Marketing) × multAcciones
-    /// (cada departamento aporta su bonusProduccionPorNivel).
+    /// multProducción = multAcciones × Π (1 + bonusPorNivel × nivel + bonusPorPersona × personal)
+    /// Ej: RRHH nivel 2 con 3 reclutadores = 1 + 0.15×2 + 0.02×3 = ×1.36
     /// </summary>
     public double MultProduccion
     {
@@ -392,13 +451,13 @@ public class GameManager : MonoBehaviour
             {
                 DepartamentoData d = departamentos[i];
                 if (d == null) continue;
-                mult *= 1.0 + d.bonusProduccionPorNivel * Estado.nivelesDepartamentos[i];
+                mult *= 1.0 + d.bonusProduccionPorNivel * Estado.nivelesDepartamentos[i] + SumaRoles(d, r => r.bonusProduccion);
             }
             return mult;
         }
     }
 
-    /// <summary>Descuento sobre el costo de contratar: 0.95^nivelFinanzas.</summary>
+    /// <summary>Descuento sobre el costo de contratar: 0.95^nivelFinanzas × 0.985^analistas.</summary>
     public double MultFinanzas
     {
         get
@@ -407,15 +466,34 @@ public class GameManager : MonoBehaviour
             for (int i = 0; i < departamentos.Length; i++)
             {
                 DepartamentoData d = departamentos[i];
-                if (d == null || d.descuentoContratacionPorNivel <= 0) continue;
-                mult *= Math.Pow(d.descuentoContratacionPorNivel, Estado.nivelesDepartamentos[i]);
+                if (d == null) continue;
+                if (d.descuentoContratacionPorNivel > 0)
+                    mult *= Math.Pow(d.descuentoContratacionPorNivel, Estado.nivelesDepartamentos[i]);
+
+            }
+            for (int k = 0; k < roles.Count; k++)
+            {
+                double descuento = roles[k].rol.descuentoContratacion;
+                if (descuento > 0 && descuento < 1) mult *= Math.Pow(descuento, Estado.personalRoles[k]);
             }
             return mult;
         }
     }
 
+    /// <summary>Suma de un efecto × cantidad contratada, para todos los puestos internos de un departamento.</summary>
+    private double SumaRoles(DepartamentoData d, Func<RolDepartamento, double> efecto)
+    {
+        double suma = 0;
+        for (int k = 0; k < roles.Count; k++)
+        {
+            if (roles[k].departamento == d) suma += efecto(roles[k].rol) * Estado.personalRoles[k];
+        }
+        return suma;
+    }
+
     /// <summary>
-    /// Valor por clic = (1 + nivelMarketing) × multAcciones + ingresoPorSegundo × 0.01 × nivelMarketing
+    /// Valor por clic = (1 + Σ bonus de clic) × multAcciones + ingresoPorSegundo × Σ % al clic
+    /// (Marketing: +1 y +0.4% por nivel; cada community manager: +1 y +0.1%).
     /// </summary>
     public double ValorPorClic
     {
@@ -428,8 +506,8 @@ public class GameManager : MonoBehaviour
                 DepartamentoData d = departamentos[i];
                 if (d == null) continue;
                 int nivel = Estado.nivelesDepartamentos[i];
-                clicBase += d.bonusClicPorNivel * nivel;
-                porcentajeIngreso += d.porcentajeIngresoAlClicPorNivel * nivel;
+                clicBase += d.bonusClicPorNivel * nivel + SumaRoles(d, r => r.bonusClic);
+                porcentajeIngreso += d.porcentajeIngresoAlClicPorNivel * nivel + SumaRoles(d, r => r.porcentajeIngresoAlClic);
             }
             return clicBase * MultAcciones + IngresoPorSegundo * porcentajeIngreso;
         }
@@ -475,6 +553,7 @@ public class GameManager : MonoBehaviour
         {
             int total = 0;
             foreach (int c in Estado.cantidadesPuestos) total += c;
+            foreach (int c in Estado.personalRoles) total += c;
             return total;
         }
     }
@@ -529,7 +608,7 @@ public class GameManager : MonoBehaviour
     /// <summary>Costo de la próxima contratación: costoBase × 1.15^cantidad × multFinanzas.</summary>
     public double CostoUnitario(PuestoData p)
     {
-        return p.costoBase * Math.Pow(CrecimientoCosto, Cantidad(p)) * MultFinanzas;
+        return p.costoBase * Math.Pow(crecimientoCosto, Cantidad(p)) * MultFinanzas;
     }
 
     /// <summary>Costo de contratar n juntos (suma geométrica).</summary>
@@ -539,7 +618,7 @@ public class GameManager : MonoBehaviour
 
         double primero = CostoUnitario(p);
         if (n == 1) return primero;
-        return primero * (Math.Pow(CrecimientoCosto, n) - 1) / (CrecimientoCosto - 1);
+        return primero * (Math.Pow(crecimientoCosto, n) - 1) / (crecimientoCosto - 1);
     }
 
     /// <summary>Cuántos se pueden contratar con la plata actual y los lugares libres.</summary>
@@ -554,7 +633,7 @@ public class GameManager : MonoBehaviour
         if (Estado.plata < primero) return 0;
 
         // Despejamos n de: primero × (1.15^n − 1) / 0.15 ≤ plata
-        double n = Math.Floor(Math.Log(Estado.plata * (CrecimientoCosto - 1) / primero + 1) / Math.Log(CrecimientoCosto));
+        double n = Math.Floor(Math.Log(Estado.plata * (crecimientoCosto - 1) / primero + 1) / Math.Log(crecimientoCosto));
         int cantidad = (int)Math.Min(Math.Min(n, libres), MaxCompraPorVez);
 
         // Ajuste por redondeo
@@ -672,6 +751,93 @@ public class GameManager : MonoBehaviour
     // ------------------------------------------------------------------
     // Acciones del jugador
     // ------------------------------------------------------------------
+
+    // ------------------------------------------------------------------
+    // Personal de los departamentos
+    // ------------------------------------------------------------------
+
+    private void RegistrarRoles()
+    {
+        roles.Clear();
+        indiceRoles.Clear();
+        foreach (DepartamentoData d in departamentos)
+        {
+            if (d == null || d.roles == null) continue;
+            foreach (RolDepartamento r in d.roles)
+            {
+                if (r == null || indiceRoles.ContainsKey(r)) continue;
+                indiceRoles[r] = roles.Count;
+                roles.Add(new RolRegistrado { departamento = d, rol = r });
+            }
+        }
+    }
+
+    private static string IdRol(RolRegistrado r) => r.departamento.id + "/" + r.rol.id;
+
+    private int IndiceRol(RolDepartamento rol)
+    {
+        return rol != null && indiceRoles.TryGetValue(rol, out int i) ? i : -1;
+    }
+
+    /// <summary>Puestos internos del departamento, en orden.</summary>
+    public IReadOnlyList<RolDepartamento> RolesDe(DepartamentoData d)
+    {
+        return d != null && d.roles != null ? d.roles : (IReadOnlyList<RolDepartamento>)Array.Empty<RolDepartamento>();
+    }
+
+    /// <summary>Total de personal del departamento (todos sus puestos internos).</summary>
+    public int PersonalDepartamento(DepartamentoData d)
+    {
+        int total = 0;
+        for (int k = 0; k < roles.Count; k++)
+        {
+            if (roles[k].departamento == d) total += Estado.personalRoles[k];
+        }
+        return total;
+    }
+
+    public int PersonalRol(RolDepartamento rol)
+    {
+        int i = IndiceRol(rol);
+        return i < 0 ? 0 : Estado.personalRoles[i];
+    }
+
+    public bool RolDesbloqueado(DepartamentoData d, RolDepartamento rol)
+    {
+        return d != null && rol != null && Nivel(d) >= rol.nivelRequerido;
+    }
+
+    /// <summary>Lugares = lugares por nivel × niveles desde el requerido. Ej: requerido 3, nivel 5 → 3 niveles.</summary>
+    public int CapacidadRol(DepartamentoData d, RolDepartamento rol)
+    {
+        if (!RolDesbloqueado(d, rol)) return 0;
+        return rol.lugaresPorNivel * (Nivel(d) - rol.nivelRequerido + 1);
+    }
+
+    /// <summary>Costo de la próxima persona: base × crecimiento^personal × multFinanzas.</summary>
+    public double CostoRol(RolDepartamento rol)
+    {
+        if (rol == null) return 0;
+        return rol.costoBase * Math.Pow(rol.crecimientoCosto, PersonalRol(rol)) * MultFinanzas;
+    }
+
+    /// <summary>Contrata una persona para un puesto interno del departamento.</summary>
+    public bool ContratarRol(DepartamentoData d, RolDepartamento rol)
+    {
+        int i = IndiceRol(rol);
+        if (i < 0 || roles[i].departamento != d) return false;
+        if (Estado.personalRoles[i] >= CapacidadRol(d, rol)) return false;
+
+        double costo = CostoRol(rol);
+        if (costo > Estado.plata) return false;
+
+        Estado.plata -= costo;
+        Estado.personalRoles[i]++;
+
+        OnPersonalDepartamentoContratado?.Invoke(d, rol);
+        AvisarCambio();
+        return true;
+    }
 
     /// <summary>Sube un nivel el departamento. Devuelve false si está al máximo o no alcanza la plata.</summary>
     public bool MejorarDepartamento(DepartamentoData d)

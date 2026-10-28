@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using TMPro;
@@ -443,6 +444,7 @@ public static class ConfiguradorProyecto
         SerializedObject so = new SerializedObject(organigrama);
         so.FindProperty("spriteNodo").objectReferenceValue = AssetDatabase.GetBuiltinExtraResource<Sprite>("UI/Skin/Background.psd");
         so.FindProperty("colorCEO").colorValue = Tema.botonFacturar;
+        so.FindProperty("colorOperaciones").colorValue = Tema.seleccion;
         so.FindProperty("colorTextoNodo").colorValue = Tema.textoBoton;
         so.FindProperty("colorLinea").colorValue = linea;
         so.FindProperty("colorMas").colorValue = Tema.bloqueado;
@@ -645,7 +647,7 @@ public static class ConfiguradorProyecto
     // =================================================================
     // PASO 11: sonido y vibración
     // =================================================================
-    [MenuItem("CEO Clicker/Paso 11 - Sonido y vibración", priority = 11)]
+    [MenuItem("CEO Clicker/Paso 11 - Música, sonido y vibración", priority = 11)]
     public static void ConfigurarPaso11()
     {
         if (!TextMeshProListo()) return;
@@ -670,9 +672,28 @@ public static class ConfiguradorProyecto
             go.AddComponent<AudioSource>();
             feedback = go.AddComponent<Feedback>();
         }
-        AudioSource fuente = feedback.GetComponent<AudioSource>();
+        // Dos AudioSource: sonidos y música
+        AudioSource[] fuentes = feedback.GetComponents<AudioSource>();
+        AudioSource fuente = fuentes[0];
+        AudioSource fuenteMusica = fuentes.Length > 1 ? fuentes[1] : feedback.gameObject.AddComponent<AudioSource>();
         fuente.playOnAwake = false;
         fuente.spatialBlend = 0f;
+        fuenteMusica.playOnAwake = false;
+        fuenteMusica.loop = true;
+        fuenteMusica.spatialBlend = 0f;
+
+        // La música se carga de a poco (no ocupa toda la memoria de una)
+        AudioImporter importadorMusica = AssetImporter.GetAtPath(RaizProyecto + "/Audio/musica.ogg") as AudioImporter;
+        if (importadorMusica != null)
+        {
+            AudioImporterSampleSettings ajustesMusica = importadorMusica.defaultSampleSettings;
+            if (ajustesMusica.loadType != AudioClipLoadType.Streaming)
+            {
+                ajustesMusica.loadType = AudioClipLoadType.Streaming;
+                importadorMusica.defaultSampleSettings = ajustesMusica;
+                importadorMusica.SaveAndReimport();
+            }
+        }
 
         // Sonidos por defecto (solo si el campo está vacío, para no pisar los tuyos)
         SerializedObject soFeedback = new SerializedObject(feedback);
@@ -681,6 +702,10 @@ public static class ConfiguradorProyecto
         AsignarSonidoSiFalta(soFeedback, "sonidoMejorar", "mejorar.wav");
         AsignarSonidoSiFalta(soFeedback, "sonidoEtapa", "etapa.wav");
         AsignarSonidoSiFalta(soFeedback, "sonidoBolsa", "bolsa.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoFundar", "fundar.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoOffline", "offline.wav");
+        AsignarSonidoSiFalta(soFeedback, "sonidoToque", "toque.wav");
+        AsignarSonidoSiFalta(soFeedback, "musica", "musica.ogg");
         soFeedback.ApplyModifiedPropertiesWithoutUndo();
 
         // 2) Tarjeta de ajustes en la pestaña Empresa (antes de "Borrar partida")
@@ -699,19 +724,22 @@ public static class ConfiguradorProyecto
         fila.offsetMin = new Vector2(32f, 26f);
         fila.offsetMax = new Vector2(-32f, 116f);
         HorizontalLayoutGroup hl = fila.gameObject.AddComponent<HorizontalLayoutGroup>();
-        hl.spacing = 20f;
+        hl.spacing = 16f;
         hl.childControlWidth = true;
         hl.childControlHeight = true;
         hl.childForceExpandWidth = true;
         hl.childForceExpandHeight = true;
 
         Button botonSonido = CrearBotonAjuste("BotonSonido", fila, "Sonido: Sí", out TextMeshProUGUI textoSonido);
+        Button botonMusica = CrearBotonAjuste("BotonMusica", fila, "Música: Sí", out TextMeshProUGUI textoMusica);
         Button botonVibracion = CrearBotonAjuste("BotonVibracion", fila, "Vibración: Sí", out TextMeshProUGUI textoVibracion);
 
         UIAjustes ajustes = tarjeta.gameObject.AddComponent<UIAjustes>();
         SerializedObject so = new SerializedObject(ajustes);
         so.FindProperty("botonSonido").objectReferenceValue = botonSonido;
         so.FindProperty("botonVibracion").objectReferenceValue = botonVibracion;
+        so.FindProperty("botonMusica").objectReferenceValue = botonMusica;
+        so.FindProperty("textoMusica").objectReferenceValue = textoMusica;
         so.FindProperty("textoSonido").objectReferenceValue = textoSonido;
         so.FindProperty("textoVibracion").objectReferenceValue = textoVibracion;
         so.FindProperty("colorEncendido").colorValue = Tema.botonContratar;
@@ -1038,6 +1066,151 @@ public static class ConfiguradorProyecto
         return campo;
     }
 
+    // =================================================================
+    // PASO 14: personal de los departamentos y rebalanceo de la economía
+    // =================================================================
+    [MenuItem("CEO Clicker/Paso 14 - Puestos de los departamentos y rebalanceo", priority = 15)]
+    public static void ConfigurarPaso14()
+    {
+        if (!TextMeshProListo()) return;
+
+        SafeArea area = BuscarAreaSegura();
+        if (area == null) return;
+
+        GameManager gm = Object.FindFirstObjectByType<GameManager>();
+        UIListaDepartamentos lista = Object.FindFirstObjectByType<UIListaDepartamentos>(FindObjectsInactive.Include);
+        if (gm == null || lista == null)
+        {
+            EditorUtility.DisplayDialog("CEO Clicker", "Primero corré el Paso 5 (falta el GameManager o la lista de Departamentos).", "OK");
+            return;
+        }
+
+        if (!EditorUtility.DisplayDialog("CEO Clicker",
+                "Se van a reemplazar los costos y efectos de puestos y departamentos por el balance nuevo, " +
+                "y se agrega el personal de cada departamento.\n\n¿Seguimos?",
+                "Sí, aplicar", "Cancelar"))
+        {
+            return;
+        }
+
+        // 1) Economía de los puestos
+        SerializedObject soGm = new SerializedObject(gm);
+        soGm.FindProperty("crecimientoCosto").doubleValue = 1.2;
+        soGm.ApplyModifiedPropertiesWithoutUndo();
+
+        SerializedProperty puestos = soGm.FindProperty("puestos");
+        for (int i = 0; i < puestos.arraySize; i++)
+        {
+            if (puestos.GetArrayElementAtIndex(i).objectReferenceValue is PuestoData p) BalancearPuesto(p);
+        }
+
+        // 2) Departamentos y su personal
+        SerializedProperty departamentos = soGm.FindProperty("departamentos");
+        for (int i = 0; i < departamentos.arraySize; i++)
+        {
+            if (departamentos.GetArrayElementAtIndex(i).objectReferenceValue is DepartamentoData d) BalancearDepartamento(d);
+        }
+
+        // 3) Fila de departamento nueva (con la parte de personal)
+        UIDepartamentoItem prefab = CrearPrefabItemDepartamento();
+        SerializedObject soLista = new SerializedObject(lista);
+        soLista.FindProperty("prefabItem").objectReferenceValue = prefab;
+        soLista.ApplyModifiedPropertiesWithoutUndo();
+
+        GuardarEscenaActiva();
+        AssetDatabase.SaveAssets();
+        Debug.Log("<color=#D65A92><b>CEO Clicker:</b></color> Paso 14 listo. Economía rebalanceada y personal de departamentos agregado.");
+    }
+
+    /// <summary>Costo y producción de cada puesto (balance probado con una simulación).</summary>
+    private static void BalancearPuesto(PuestoData p)
+    {
+        switch (p.id)
+        {
+            case "empleado": p.costoBase = 15; p.produccionPorSegundo = 0.4; break;
+            case "supervisor": p.costoBase = 200; p.produccionPorSegundo = 3; break;
+            case "gerente": p.costoBase = 3000; p.produccionPorSegundo = 24; break;
+            case "director": p.costoBase = 50000; p.produccionPorSegundo = 180; break;
+            case "vicepresidente": p.costoBase = 1000000; p.produccionPorSegundo = 1300; break;
+            default: return;
+        }
+        EditorUtility.SetDirty(p);
+    }
+
+    /// <summary>Niveles, efectos y personal propio de cada departamento.</summary>
+    private static void BalancearDepartamento(DepartamentoData d)
+    {
+        switch (d.id)
+        {
+            case "rrhh":
+                d.descripcion = "Capacitaciones y after office: todo el personal produce +15% por nivel.";
+                d.costoBase = 600; d.multiplicadorCosto = 3.2; d.nivelMaximo = 0;
+                d.bonusProduccionPorNivel = 0.15; d.bonusClicPorNivel = 0;
+                d.porcentajeIngresoAlClicPorNivel = 0; d.descuentoContratacionPorNivel = 1;
+
+                d.roles = new List<RolDepartamento>
+                {
+                    Rol("reclutador", "Reclutador", "Reclutadores", "R", 1, 2, 3000, 1.4, produccion: 0.02),
+                    Rol("capacitador", "Capacitador", "Capacitadores", "Ca", 3, 1, 50000, 1.45, produccion: 0.05)
+                };
+                break;
+
+            case "marketing":
+                d.descripcion = "Publicidad en redes: +$1 y +0.4% de tu $/s en cada clic, y +5% de producción por nivel.";
+                d.costoBase = 100; d.multiplicadorCosto = 3.0; d.nivelMaximo = 0;
+                d.bonusProduccionPorNivel = 0.05; d.bonusClicPorNivel = 1;
+                d.porcentajeIngresoAlClicPorNivel = 0.004; d.descuentoContratacionPorNivel = 1;
+
+                d.roles = new List<RolDepartamento>
+                {
+                    Rol("community", "Community manager", "Community managers", "CM", 1, 2, 400, 1.4, clic: 1, alClic: 0.001),
+                    Rol("disenador", "Diseñador gráfico", "Diseñadores gráficos", "Di", 3, 1, 8000, 1.45, clic: 3, alClic: 0.002),
+                    Rol("creador", "Creador de contenido", "Creadores de contenido", "Cc", 6, 1, 2.5e5, 1.5, clic: 10, alClic: 0.004)
+                };
+                break;
+
+            case "finanzas":
+                d.descripcion = "Contadores creativos: contratar sale 5% más barato por nivel.";
+                d.costoBase = 4000; d.multiplicadorCosto = 3.5; d.nivelMaximo = 12;
+                d.bonusProduccionPorNivel = 0; d.bonusClicPorNivel = 0;
+                d.porcentajeIngresoAlClicPorNivel = 0; d.descuentoContratacionPorNivel = 0.95;
+
+                d.roles = new List<RolDepartamento>
+                {
+                    Rol("analista", "Analista", "Analistas", "A", 1, 1, 12000, 1.45, descuento: 0.985),
+                    Rol("contador", "Contador", "Contadores", "Co", 3, 1, 4e5, 1.5, descuento: 0.975),
+                    Rol("tesorero", "Tesorero", "Tesoreros", "T", 6, 1, 2e7, 1.55, produccion: 0.03),
+                    Rol("asesor", "Asesor de inversiones", "Asesores de inversiones", "Ai", 10, 1, 3e9, 1.6, produccion: 0.08)
+                };
+                break;
+
+            default:
+                return;
+        }
+        EditorUtility.SetDirty(d);
+    }
+
+    private static RolDepartamento Rol(string id, string nombre, string plural, string inicial, int nivelRequerido,
+        int lugaresPorNivel, double costo, double crecimiento, double produccion = 0, double clic = 0,
+        double alClic = 0, double descuento = 1)
+    {
+        return new RolDepartamento
+        {
+            id = id,
+            nombre = nombre,
+            nombrePlural = plural,
+            inicial = inicial,
+            nivelRequerido = nivelRequerido,
+            lugaresPorNivel = lugaresPorNivel,
+            costoBase = costo,
+            crecimientoCosto = crecimiento,
+            bonusProduccion = produccion,
+            bonusClic = clic,
+            porcentajeIngresoAlClic = alClic,
+            descuentoContratacion = descuento
+        };
+    }
+
     private static void AsignarSonidoSiFalta(SerializedObject so, string propiedad, string archivo)
     {
         SerializedProperty prop = so.FindProperty(propiedad);
@@ -1054,7 +1227,11 @@ public static class ConfiguradorProyecto
         Button boton = rt.gameObject.AddComponent<Button>();
         ConfigurarBoton(boton, img);
 
-        textoBoton = CrearTexto("Texto", rt, texto, 32, Tema.textoBoton);
+        textoBoton = CrearTexto("Texto", rt, texto, 30, Tema.textoBoton);
+        textoBoton.enableAutoSizing = true;
+        textoBoton.fontSizeMin = 18f;
+        textoBoton.fontSizeMax = 30f;
+        textoBoton.margin = new Vector4(8f, 0f, 8f, 0f);
         Estirar(textoBoton.rectTransform);
         return boton;
     }
@@ -1357,19 +1534,19 @@ public static class ConfiguradorProyecto
 
         PuestoData supervisor = CrearOObtenerPuesto(2, "supervisor", "Supervisor", "Supervisores", "S", "#2C6A9A",
             "Controla que nadie se cuelgue con el celular.",
-            120, 3, 2, false, out bool nuevoS);
+            200, 3, 2, false, out bool nuevoS);
 
         PuestoData gerente = CrearOObtenerPuesto(3, "gerente", "Gerente", "Gerentes", "G", "#0A7458",
             "Arma reuniones que podrían haber sido un mail.",
-            1300, 20, 2, false, out bool nuevoG);
+            3000, 24, 2, false, out bool nuevoG);
 
         PuestoData director = CrearOObtenerPuesto(4, "director", "Director", "Directores", "D", "#9A5B00",
             "Define la estrategia desde un sillón de cuero.",
-            15000, 120, 2, false, out bool nuevoD);
+            50000, 180, 2, false, out bool nuevoD);
 
         PuestoData vice = CrearOObtenerPuesto(5, "vicepresidente", "Vicepresidente", "Vicepresidentes", "VP", "#6D3FC4",
             "Viaja en business y cierra tratos enormes.",
-            180000, 800, 0, true, out bool nuevoVP);
+            1000000, 1300, 0, true, out bool nuevoVP);
 
         // Jefes: solo en los recién creados (para no pisar lo que balanceaste a mano)
         if (nuevoE) { empleado.jefe = supervisor; empleado.lugaresPorJefe = 5; }
@@ -1722,7 +1899,12 @@ public static class ConfiguradorProyecto
             2500, 2.8, 12, 0, 0, 0, 0.95);
 
         DepartamentoData[] todos = { rrhh, marketing, finanzas };
-        foreach (DepartamentoData d in todos) EditorUtility.SetDirty(d);
+        foreach (DepartamentoData d in todos)
+        {
+            // Departamentos sin personal configurado todavía: reciben el balance nuevo completo
+            if (d.roles == null || d.roles.Count == 0) BalancearDepartamento(d);
+            EditorUtility.SetDirty(d);
+        }
         AssetDatabase.SaveAssets();
         return todos;
     }
@@ -1806,10 +1988,13 @@ public static class ConfiguradorProyecto
         return contenido;
     }
 
-    /// <summary>Crea (o recrea) el prefab de la fila de un departamento.</summary>
+    /// <summary>
+    /// Crea (o recrea) el prefab de la fila de un departamento:
+    /// arriba el nivel (botón Mejorar) y abajo su personal propio (botón Contratar).
+    /// </summary>
     private static UIDepartamentoItem CrearPrefabItemDepartamento()
     {
-        const float alto = 220f;
+        const float alto = 350f;
         const float izquierdaTextos = 188f;
         const float derechaTextos = 328f;
 
@@ -1823,12 +2008,12 @@ public static class ConfiguradorProyecto
         le.minHeight = alto;
         le.preferredHeight = alto;
 
-        // Insignia con la sigla
+        // ---------- Parte de arriba: el departamento ----------
         RectTransform rtInsignia = CrearRect("Insignia", rtRaiz);
-        rtInsignia.anchorMin = rtInsignia.anchorMax = new Vector2(0f, 0.5f);
-        rtInsignia.pivot = new Vector2(0f, 0.5f);
+        rtInsignia.anchorMin = rtInsignia.anchorMax = new Vector2(0f, 1f);
+        rtInsignia.pivot = new Vector2(0f, 1f);
         rtInsignia.sizeDelta = new Vector2(140f, 140f);
-        rtInsignia.anchoredPosition = new Vector2(24f, 0f);
+        rtInsignia.anchoredPosition = new Vector2(24f, -40f);
         Image insignia = AgregarImagenRedondeada(rtInsignia.gameObject, Tema.bloqueado, 0.3f);
         insignia.raycastTarget = false;
 
@@ -1839,7 +2024,6 @@ public static class ConfiguradorProyecto
         Estirar(sigla.rectTransform);
         sigla.margin = new Vector4(8f, 0f, 8f, 0f);
 
-        // Textos del medio
         TextMeshProUGUI nombre = CrearTexto("TextoNombre", rtRaiz, "Departamento", 40, Tema.texto);
         nombre.alignment = TextAlignmentOptions.MidlineLeft;
         nombre.overflowMode = TextOverflowModes.Ellipsis;
@@ -1866,20 +2050,100 @@ public static class ConfiguradorProyecto
         descripcion.overflowMode = TextOverflowModes.Ellipsis;
         FilaArriba(descripcion.rectTransform, izquierdaTextos, derechaTextos, 124f, 80f);
 
-        // Botón Mejorar
         RectTransform rtBoton = CrearRect("BotonComprar", rtRaiz);
-        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(1f, 0.5f);
-        rtBoton.pivot = new Vector2(1f, 0.5f);
+        rtBoton.anchorMin = rtBoton.anchorMax = new Vector2(1f, 1f);
+        rtBoton.pivot = new Vector2(1f, 1f);
         rtBoton.sizeDelta = new Vector2(280f, 150f);
-        rtBoton.anchoredPosition = new Vector2(-24f, 0f);
+        rtBoton.anchoredPosition = new Vector2(-24f, -35f);
         Image imgBoton = AgregarImagenRedondeada(rtBoton.gameObject, Tema.botonMejorar, 0.3f);
         Button boton = rtBoton.gameObject.AddComponent<Button>();
         ConfigurarBoton(boton, imgBoton);
 
-        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Mejorar\n$60", 30, Tema.textoBoton);
+        TextMeshProUGUI textoBoton = CrearTexto("TextoBoton", rtBoton, "Mejorar\n$100", 30, Tema.textoBoton);
         Estirar(textoBoton.rectTransform);
 
-        // Script con referencias
+        // Separador
+        RectTransform separador = CrearRect("Separador", rtRaiz);
+        FilaArriba(separador, 24f, 24f, 226f, 3f);
+        Image imgSeparador = separador.gameObject.AddComponent<Image>();
+        Color colorSeparador = Tema.bloqueado;
+        colorSeparador.a = 0.7f;
+        imgSeparador.color = colorSeparador;
+        imgSeparador.raycastTarget = false;
+
+        // ---------- Fila de ejemplo de un puesto interno (el script la copia una vez por puesto) ----------
+        const float altoCabecera = 236f;
+        const float altoFila = 116f;
+
+        RectTransform fila = CrearRect("PlantillaFila", rtRaiz);
+        FilaArriba(fila, 0f, 0f, altoCabecera, altoFila);
+
+        RectTransform lineaFila = CrearRect("Linea", fila);
+        FilaArriba(lineaFila, 158f, 24f, 0f, 2f);
+        Image imgLineaFila = lineaFila.gameObject.AddComponent<Image>();
+        Color colorLineaFila = Tema.bloqueado;
+        colorLineaFila.a = 0.5f;
+        imgLineaFila.color = colorLineaFila;
+        imgLineaFila.raycastTarget = false;
+
+        RectTransform rtMini = CrearRect("Insignia", fila);
+        rtMini.anchorMin = rtMini.anchorMax = new Vector2(0f, 0.5f);
+        rtMini.pivot = new Vector2(0f, 0.5f);
+        rtMini.sizeDelta = new Vector2(80f, 80f);
+        rtMini.anchoredPosition = new Vector2(54f, 0f); // centrada bajo la insignia grande
+        Image insigniaRol = AgregarImagenRedondeada(rtMini.gameObject, Tema.bloqueado, 0.5f);
+        insigniaRol.raycastTarget = false;
+
+        TextMeshProUGUI inicialRol = CrearTexto("Inicial", rtMini, "R", 34, Tema.textoBoton);
+        inicialRol.enableAutoSizing = true;
+        inicialRol.fontSizeMin = 18f;
+        inicialRol.fontSizeMax = 34f;
+        Estirar(inicialRol.rectTransform);
+
+        TextMeshProUGUI nombreRol = CrearTexto("TextoNombre", fila, "Puesto: 0 / 0", 28, Tema.texto);
+        nombreRol.alignment = TextAlignmentOptions.MidlineLeft;
+        nombreRol.overflowMode = TextOverflowModes.Ellipsis;
+        nombreRol.enableAutoSizing = true;
+        nombreRol.fontSizeMin = 18f;
+        nombreRol.fontSizeMax = 28f;
+        FilaArriba(nombreRol.rectTransform, 158f, 328f, 14f, 44f);
+
+        TextMeshProUGUI detalleRol = CrearTexto("TextoDetalle", fila, "c/u: +2% producción", 22, Tema.textoSuave);
+        detalleRol.fontStyle = FontStyles.Normal;
+        detalleRol.alignment = TextAlignmentOptions.TopLeft;
+        detalleRol.overflowMode = TextOverflowModes.Ellipsis;
+        detalleRol.enableAutoSizing = true;
+        detalleRol.fontSizeMin = 15f;
+        detalleRol.fontSizeMax = 22f;
+        FilaArriba(detalleRol.rectTransform, 158f, 328f, 60f, 48f);
+
+        RectTransform rtBotonRol = CrearRect("Boton", fila);
+        rtBotonRol.anchorMin = rtBotonRol.anchorMax = new Vector2(1f, 0.5f);
+        rtBotonRol.pivot = new Vector2(1f, 0.5f);
+        rtBotonRol.sizeDelta = new Vector2(280f, 92f);
+        rtBotonRol.anchoredPosition = new Vector2(-24f, 0f);
+        Image imgBotonRol = AgregarImagenRedondeada(rtBotonRol.gameObject, Tema.botonContratar, 0.3f);
+        Button botonRol = rtBotonRol.gameObject.AddComponent<Button>();
+        ConfigurarBoton(botonRol, imgBotonRol);
+
+        TextMeshProUGUI textoBotonRol = CrearTexto("TextoBoton", rtBotonRol, "Contratar\n$400", 26, Tema.textoBoton);
+        textoBotonRol.enableAutoSizing = true;
+        textoBotonRol.fontSizeMin = 16f;
+        textoBotonRol.fontSizeMax = 26f;
+        Estirar(textoBotonRol.rectTransform);
+
+        UIFilaRol scriptFila = fila.gameObject.AddComponent<UIFilaRol>();
+        SerializedObject soFila = new SerializedObject(scriptFila);
+        soFila.FindProperty("insignia").objectReferenceValue = insigniaRol;
+        soFila.FindProperty("textoInicial").objectReferenceValue = inicialRol;
+        soFila.FindProperty("textoNombre").objectReferenceValue = nombreRol;
+        soFila.FindProperty("textoDetalle").objectReferenceValue = detalleRol;
+        soFila.FindProperty("boton").objectReferenceValue = botonRol;
+        soFila.FindProperty("textoBoton").objectReferenceValue = textoBotonRol;
+        soFila.ApplyModifiedPropertiesWithoutUndo();
+        fila.gameObject.SetActive(false);
+
+        // ---------- Script con referencias ----------
         UIDepartamentoItem item = raiz.AddComponent<UIDepartamentoItem>();
         SerializedObject so = new SerializedObject(item);
         so.FindProperty("insignia").objectReferenceValue = insignia;
@@ -1890,6 +2154,11 @@ public static class ConfiguradorProyecto
         so.FindProperty("textoDescripcion").objectReferenceValue = descripcion;
         so.FindProperty("botonComprar").objectReferenceValue = boton;
         so.FindProperty("textoBoton").objectReferenceValue = textoBoton;
+        so.FindProperty("plantillaFila").objectReferenceValue = scriptFila;
+        so.FindProperty("altoCabecera").floatValue = altoCabecera;
+        so.FindProperty("altoFila").floatValue = altoFila;
+        so.FindProperty("colorDescripcion").colorValue = Tema.textoSuave;
+        so.FindProperty("colorAviso").colorValue = Tema.aviso;
         so.ApplyModifiedPropertiesWithoutUndo();
 
         GameObject prefab = PrefabUtility.SaveAsPrefabAsset(raiz, RutaPrefabDepartamento);

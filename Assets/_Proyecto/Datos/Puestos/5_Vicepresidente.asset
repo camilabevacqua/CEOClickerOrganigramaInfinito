@@ -18,8 +18,8 @@ MonoBehaviour:
   inicial: VP
   color: {r: 0.69411767, g: 0.5411765, b: 0.9019608, a: 1}
   descripcion: Viaja en business y cierra tratos enormes.
-  costoBase: 180000
-  produccionPorSegundo: 800
+  costoBase: 1000000
+  produccionPorSegundo: 1300
   sinLimite: 1
   lugaresBase: 0
   jefe: {fileID: 0}

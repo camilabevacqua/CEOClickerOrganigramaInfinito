@@ -33,4 +33,8 @@ public class EstadoJuego
 
     // Nivel de cada departamento, en el mismo orden que la lista de departamentos del GameManager
     public int[] nivelesDepartamentos = new int[0];
+
+    // Personal de cada puesto interno de los departamentos (Reclutadores, Capacitadores...),
+    // en el orden en que el GameManager recorre departamentos y sus roles
+    public int[] personalRoles = new int[0];
 }

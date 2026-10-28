@@ -17,10 +17,59 @@ MonoBehaviour:
   sigla: FIN
   color: {r: 0.6117647, g: 0.5176471, b: 0.85882354, a: 1}
   descripcion: "Contadores creativos: contratar sale 5% m\xE1s barato por nivel."
-  costoBase: 2500
-  multiplicadorCosto: 2.8
+  costoBase: 4000
+  multiplicadorCosto: 3.5
   nivelMaximo: 12
   bonusProduccionPorNivel: 0
   bonusClicPorNivel: 0
   porcentajeIngresoAlClicPorNivel: 0
   descuentoContratacionPorNivel: 0.95
+  roles:
+  - id: analista
+    nombre: Analista
+    nombrePlural: Analistas
+    inicial: A
+    nivelRequerido: 1
+    lugaresPorNivel: 1
+    costoBase: 12000
+    crecimientoCosto: 1.45
+    bonusProduccion: 0
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 0.985
+  - id: contador
+    nombre: Contador
+    nombrePlural: Contadores
+    inicial: Co
+    nivelRequerido: 3
+    lugaresPorNivel: 1
+    costoBase: 400000
+    crecimientoCosto: 1.5
+    bonusProduccion: 0
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 0.975
+  - id: tesorero
+    nombre: Tesorero
+    nombrePlural: Tesoreros
+    inicial: T
+    nivelRequerido: 6
+    lugaresPorNivel: 1
+    costoBase: 20000000
+    crecimientoCosto: 1.55
+    bonusProduccion: 0.03
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 1
+  - id: asesor
+    nombre: Asesor de inversiones
+    nombrePlural: Asesores de inversiones
+    inicial: Ai
+    nivelRequerido: 10
+    lugaresPorNivel: 1
+    costoBase: 3000000000
+    crecimientoCosto: 1.6
+    bonusProduccion: 0.08
+    bonusClic: 0
+    porcentajeIngresoAlClic: 0
+    descuentoContratacion: 1
